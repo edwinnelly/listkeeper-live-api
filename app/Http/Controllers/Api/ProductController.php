@@ -30,6 +30,7 @@ class ProductController extends Controller
             ], 401);
         }
 
+        //check for empty user
         if (empty($user->active_business_key)) {
             return response()->json([
                 'success' => false,
