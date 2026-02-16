@@ -158,10 +158,71 @@ class UserListController extends Controller
                 'profile_pic'                => $logoPath,
             ]);
 
+
+            $role = new Roles();
+            $role->owner_id = Auth::id();
+            $role->user_id = $newUser->id;
+            $role->business_key =$loggedInUser->active_business_key;
+
+            // Optional: grant admin full access if this is the business owner
+            $role->permission = 'yes';
+            $role->users_create = 'yes';
+            $role->users_read = 'yes';
+            $role->users_update = 'yes';
+            $role->users_delete = 'yes';
+            $role->subscriptions_read = 'yes';
+            $role->subscriptions_update = 'yes';
+            $role->locations_create = 'yes';
+            $role->locations_read = 'yes';
+            $role->locations_update = 'yes';
+            $role->locations_delete = 'yes';
+            $role->locations_analytics = 'yes';
+            $role->category_create = 'yes';
+            $role->category_read = 'yes';
+            $role->category_update = 'yes';
+            $role->category_delete = 'yes';
+            $role->product_create = 'yes';
+            $role->product_read = 'yes';
+            $role->product_update = 'yes';
+            $role->product_delete = 'yes';
+            $role->unit_create = 'yes';
+            $role->unit_read = 'yes';
+            $role->unit_update = 'yes';
+            $role->unit_delete = 'yes';
+            $role->vendor_create = 'yes';
+            $role->vendor_read = 'yes';
+            $role->vendor_update = 'yes';
+            $role->vendor_delete = 'yes';
+            $role->purchase_create = 'yes';
+            $role->purchase_read = 'yes';
+            $role->purchase_update = 'yes';
+            $role->purchase_delete = 'yes';
+            $role->customer_create = 'yes';
+            $role->customer_read = 'yes';
+            $role->customer_update = 'yes';
+            $role->customer_delete = 'yes';
+            $role->credit_note_create = 'yes';
+            $role->credit_note_read = 'yes';
+            $role->credit_note_update = 'yes';
+            $role->credit_note_delete = 'yes';
+            $role->expense_create = 'yes';
+            $role->expense_read = 'yes';
+            $role->expense_update = 'yes';
+            $role->expense_delete = 'yes';
+            $role->invoice_create = 'yes';
+            $role->invoice_read = 'yes';
+            $role->invoice_update = 'yes';
+            $role->invoice_delete = 'yes';
+            $role->pos_create = 'yes';
+            $role->pos_read = 'yes';
+            $role->pos_update = 'yes';
+            $role->pos_delete = 'yes';
+            $role->save();
+
             return response()->json([
                 'success' => true,
                 'message' => 'User created successfully',
-                'data'    => $newUser
+                // 'data'    => $newUser
             ], 201);
         } catch (\Exception $e) {
 
@@ -214,9 +275,9 @@ class UserListController extends Controller
 
                 $file = $request->file('photo');
                 $filename = time() . '_' . preg_replace('/\s+/', '_', $file->getClientOriginalName());
-                $file->storeAs('business_logo', $filename, 'public');
+                $file->storeAs('profile_pictures', $filename, 'public');
 
-                $user->profile_pic = 'business_logo/' . $filename;
+                $user->profile_pic = 'profile_pictures/' . $filename;
             }
 
             // Update user fields
@@ -241,7 +302,7 @@ class UserListController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'User updated successfully',
-                'data'    => $user
+                // 'data'    => $user
             ], 200);
         } catch (\Exception $e) {
 

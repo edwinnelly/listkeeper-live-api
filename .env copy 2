@@ -1,0 +1,57 @@
+APP_NAME=Laravel
+APP_ENV=local
+APP_DEBUG=true
+APP_KEY=base64:tm49tPePUalzr8yfHdNvPojmyROl9wpRWXgZBE7TX98=
+APP_URL=http://localhost:8000
+
+APP_LOCALE=en
+APP_FALLBACK_LOCALE=en
+APP_FAKER_LOCALE=en_US
+
+# Database (Postgres)
+DB_CONNECTION=pgsql
+DB_HOST=postgres_db
+DB_PORT=5432
+DB_DATABASE=laravel
+DB_USERNAME=laravel
+DB_PASSWORD=laravel
+
+# Redis code
+REDIS_CLIENT=phpredis
+REDIS_HOST=redis
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+# Sessions, Cache, Queue
+SESSION_DRIVER=cookie        # Important: Sanctum needs cookie driver for SPA auth
+CACHE_DRIVER=file
+QUEUE_CONNECTION=sync
+
+# Sanctum
+SESSION_DOMAIN=127.0.0.1
+SANCTUM_STATEFUL_DOMAINS=localhost:3000,127.0.0.1:3000
+
+
+# SANCTUM_STATEFUL_DOMAINS=localhost:3000
+# SESSION_DOMAIN=localhost     # Must match frontend domain
+SESSION_LIFETIME=120
+
+# Broadcast & Filesystem
+BROADCAST_DRIVER=log
+FILESYSTEM_DISK=local
+
+# Mail (for dev)
+MAIL_MAILER=log
+MAIL_HOST=127.0.0.1
+MAIL_PORT=2525
+MAIL_USERNAME=null
+MAIL_PASSWORD=null
+MAIL_FROM_ADDRESS="hello@example.com"
+MAIL_FROM_NAME="${APP_NAME}"
+
+
+POSTGRES_DB=laravel
+POSTGRES_USER=laravel
+POSTGRES_PASSWORD=laravel
+PGADMIN_EMAIL=admin@capflows.com
+PGADMIN_PASSWORD=admin123

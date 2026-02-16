@@ -1,5 +1,5 @@
 services:
-  # Laravel app (PHP-FPM + scheduler + queue)
+  # PHP-FPM Laravel app + scheduler + queue
   app:
     build:
       context: .
@@ -10,8 +10,11 @@ services:
     depends_on:
       - postgres
       - redis
-    ports:
-      - "9000:9000"
+    # Run PHP-FPM in background, then start scheduler and queue
+    command: >
+      sh -c "php-fpm & \
+             while :; do php artisan schedule:run --verbose --no-interaction; sleep 60; done & \
+             php artisan queue:work --tries=3 --timeout=90"
 
   # Nginx web server
   webserver:
