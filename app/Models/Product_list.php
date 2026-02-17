@@ -44,6 +44,7 @@ class Product_list extends Model
         'is_out_of_stock',
         'image',
         'additional_info',
+        'barcode'
     ];
 
     //product with category

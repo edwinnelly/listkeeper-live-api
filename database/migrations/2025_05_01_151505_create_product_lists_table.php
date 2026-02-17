@@ -24,6 +24,7 @@ return new class extends Migration
             // Product general info
             $table->string('name');
             $table->string('sku')->nullable(); // Stock Keeping Unit, for inventory management
+            $table->string('barcode')->nullable(); // barcode, for inventory management
             $table->text('description')->nullable();
             $table->string('slug')->nullable(); // SEO-friendly URL
             $table->string('dimensions')->nullable(); // SEO-friendly URL

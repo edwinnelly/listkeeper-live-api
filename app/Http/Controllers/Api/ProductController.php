@@ -11,14 +11,12 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 
-
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Contracts\Encryption\DecryptException;
 
 
 class ProductController extends Controller
 {
-    /**
-     * List products (per business)
-     */
     public function index()
     {
         $user = Auth::user();
@@ -30,7 +28,6 @@ class ProductController extends Controller
             ], 401);
         }
 
-        //check for empty user
         if (empty($user->active_business_key)) {
             return response()->json([
                 'success' => false,
@@ -39,7 +36,11 @@ class ProductController extends Controller
         }
 
         $products = Product_list::where('business_key', $user->active_business_key)
-            ->get();
+            ->get()
+            ->map(function ($product) {
+                $product->encrypted_id = Crypt::encryptString($product->id);
+                return $product;
+            });
 
         return response()->json([
             'success' => true,
@@ -47,6 +48,7 @@ class ProductController extends Controller
             'count' => $products->count()
         ]);
     }
+
 
     /**
      * Store new product
@@ -68,7 +70,7 @@ class ProductController extends Controller
             [
                 'name' => 'required|string|max:100',
                 'sku' => 'nullable|string|max:50',
-                'description' => 'nullable|string|max:300',
+                'description' => 'nullable|string|max:450',
 
                 'category_id' => 'required|integer|exists:product_categories,id',
                 'supplier_id' => 'required|integer|exists:vendors,id',
@@ -94,7 +96,7 @@ class ProductController extends Controller
                 'width'  => 'nullable|numeric|min:0',
                 'height' => 'nullable|numeric|min:0',
 
-               'image'=>'nullable|mimetypes:image/avif,image/jpeg,image/png,image/jpg,image/webp|max:2048',
+                'image' => 'nullable|mimetypes:image/avif,image/jpeg,image/png,image/jpg,image/webp|max:2048',
                 'is_active' => 'boolean',
                 'is_featured' => 'boolean',
                 'is_on_sale' => 'boolean',
@@ -133,7 +135,7 @@ class ProductController extends Controller
             $product->name = $validated['name'];
             $product->sku = $validated['sku'] ?? null;
             $product->description = $validated['description'] ?? null;
-             
+
             $product->image =  $logoPath;
 
             // truncate slug to avoid DB length issues
@@ -171,7 +173,7 @@ class ProductController extends Controller
             $product->is_out_of_stock = false;
 
             //this is product api
-            $product->image=$logoPath;
+            $product->image = $logoPath;
             $product->additional_info = null;
             $product->save();
             return response()->json([
@@ -206,9 +208,68 @@ class ProductController extends Controller
         ]);
     }
 
+    // public function show($id)
+    // {
+    //     try {
+    //         // Decrypt the ID
+    //         $id = Crypt::decrypt($id);
+    //     } catch (DecryptException $e) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Invalid product identifier'
+    //         ], 400);
+    //     }
+    //     //  $id = Crypt::decrypt($id);
+
+    //     $product = Product_list::where('id', $id)
+    //         ->where('business_key', Auth::user()->active_business_key)
+    //         ->firstOrFail();
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'data' => $product
+    //     ]);
+    // }
+
     /**
      * Update product
      */
+    // public function update(Request $request, $id)
+    // {
+    //     $user = Auth::user();
+
+    //     $product = Product_list::where('id', $id)
+    //         ->where('business_key', $user->active_business_key)
+    //         ->firstOrFail();
+
+    //     $validated = $request->validate([
+    //         'name' => 'sometimes|string|max:255',
+    //         'sku' => [
+    //             'sometimes',
+    //             Rule::unique('product_lists')
+    //                 ->ignore($product->id)
+    //                 ->where(
+    //                     fn($q) =>
+    //                     $q->where('business_key', $user->active_business_key)
+    //                 )
+    //         ],
+    //         'price' => 'nullable|numeric|min:0',
+    //         'stock_quantity' => 'nullable|numeric|min:0',
+    //         'image'=>'nullable|mimetypes:image/avif,image/jpeg,image/png,image/jpg,image/webp|max:2048',
+    //     ]);
+
+    //     $product->update(array_merge(
+    //         $request->all(),
+    //         ['slug' => $request->name ? Str::slug($request->name) : $product->slug]
+    //     ));
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Product updated successfully',
+    //         'data' => $product
+    //     ]);
+    // }
+
     public function update(Request $request, $id)
     {
         $user = Auth::user();
@@ -218,7 +279,7 @@ class ProductController extends Controller
             ->firstOrFail();
 
         $validated = $request->validate([
-            'name' => 'sometimes|string|max:255',
+            'name' => 'sometimes|string|max:100',
             'sku' => [
                 'sometimes',
                 Rule::unique('product_lists')
@@ -226,16 +287,63 @@ class ProductController extends Controller
                     ->where(
                         fn($q) =>
                         $q->where('business_key', $user->active_business_key)
-                    )
+                    ),
             ],
+            'description' => 'nullable|string|max:450',
+
+            'category_id' => 'required|integer|exists:product_categories,id',
+            'supplier_id' => 'required|integer|exists:vendors,id',
+
+            'products_measurements' => 'nullable|string|max:50',
+
             'price' => 'nullable|numeric|min:0',
-            'stock_quantity' => 'nullable|numeric|min:0',
+            'cost_price' => 'nullable|numeric|min:0',
+            'sale_price' => 'nullable|numeric|min:0',
+
+            'stock_quantity' => 'nullable|integer|min:0',
+            'low_stock_threshold' => 'nullable|integer|min:0|lte:stock_quantity',
+
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'discount_start_date' => 'nullable|date',
+            'discount_end_date' => 'nullable|date|after:discount_start_date',
+
+            'manufactured_at' => 'nullable|date',
+            'expires_at' => 'nullable|date|after:manufactured_at',
+
+            'weight' => 'nullable|numeric|min:0',
+            'length' => 'nullable|numeric|min:0',
+            'width'  => 'nullable|numeric|min:0',
+            'height' => 'nullable|numeric|min:0',
+
+            'image' => 'nullable|mimetypes:image/avif,image/jpeg,image/png,image/jpg,image/webp|max:2048',
+            'is_active' => 'boolean',
+            'is_featured' => 'boolean',
+            'is_on_sale' => 'boolean',
+
         ]);
 
-        $product->update(array_merge(
-            $request->all(),
-            ['slug' => $request->name ? Str::slug($request->name) : $product->slug]
-        ));
+        // Handle Image Upload
+        if ($request->hasFile('image')) {
+
+            // Delete old image if exists
+            if ($product->image) {
+                Storage::disk('public')->delete($product->image);
+            }
+
+            // Store new image
+            $imagePath = $request->file('image')->store('products', 'public');
+
+            // Add image path to validated array
+            $validated['image'] = $imagePath;
+        }
+
+        // Handle slug update if name exists
+        if ($request->filled('name')) {
+            $validated['slug'] = Str::slug($request->name);
+        }
+
+        // Update product
+        $product->update($validated);
 
         return response()->json([
             'success' => true,
@@ -243,6 +351,7 @@ class ProductController extends Controller
             'data' => $product
         ]);
     }
+
 
     /**
      * Delete product
