@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class ItemHistory extends Model
 {
-    protected $table='item_histories';
+   protected $table='item_histories';
 
     protected $fillable = [
         // Foreign Keys

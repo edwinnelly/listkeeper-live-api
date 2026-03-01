@@ -8,8 +8,7 @@ use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\UserListController;
 use App\Http\Controllers\Api\Product_category;
 use App\Http\Controllers\Api\ProductController;
-use App\Http\Controllers\Api\ProductsController;
-use App\Http\Controllers\Api\ProdutunitController;
+use App\Http\Controllers\Api\ProductLocationController;
 use App\Http\Controllers\Api\vendors;
 use App\Models\Product_categories;
 
@@ -43,6 +42,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Location routes
     Route::get('/locations', [LocationController::class, 'index']);
+    Route::get('/locations_without_main', [LocationController::class, 'index_without_main']);
     Route::post('/locationsadd', [LocationController::class, 'store']);
     Route::put('/locationsupdate/{id}', [LocationController::class, 'update']);
     Route::delete('/locationsdel/{id}', [LocationController::class, 'destroy']);
@@ -57,12 +57,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/usersroles/{id}', [UserListController::class, 'roles']);
     Route::post('/permissions_update/{id}', [UserListController::class, 'updateRoles']);
 
+
     //Customers List
     Route::get('/customers', [CustomerListController::class, 'index']);
     Route::post('/customers_add', [CustomerListController::class, 'store']);
     Route::get('/customers/{customerKey}', [CustomerListController::class, 'show']);
     Route::delete('/customers/{id}', [CustomerListController::class, 'destroy']);
     Route::put('/customersupdate/{id}', [CustomerListController::class, 'update']);
+
 
     //routes product categories:
     Route::get('/product-categories', [Product_category::class, 'index']);
@@ -71,6 +73,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/delete-categories/{id}', [Product_category::class, 'deleteCategory']);
 
 
+    //location products
+     Route::get('/product-locations/{id}', [ProductController::class, 'locationproducts']);
 
     //routes Vendors managements:
     Route::get('/vendors', [vendors::class, 'index']);
@@ -79,18 +83,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/vendors-dels/{id}', [vendors::class, 'destroy']);
 
 
-    
     //routes product-list managements:
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/addproducts', [ProductController::class, 'store']);
     Route::get('/products/{id}', [ProductController::class, 'show']);
     Route::put('/products/{id}', [ProductController::class, 'update']);
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
+    Route::post('/distributeProducts', [ProductController::class, 'distributeProducts']);
 
 
-    //routes product-list managements:
-    // Route::get('/product-lists', [ProductsController::class, 'index']);
-    // Route::post('/addproducts', [vendors::class, 'store']);
-    // Route::put('/updateproducts/{id}', [vendors::class, 'update']);
-    // Route::delete('/products-dels/{id}', [vendors::class, 'destroy']);
 });

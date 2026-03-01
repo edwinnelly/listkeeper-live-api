@@ -118,7 +118,11 @@ return new class extends Migration
             $table->enum('pos_delete', ['yes', 'no'])->default('no');
 
 
-
+             // Product category roles
+            $table->enum('can_edit_price', ['yes', 'no'])->default('no');
+            $table->enum('can_adjust_stock', ['yes', 'no'])->default('no');
+            $table->enum('can_transfer_stock', ['yes', 'no'])->default('no');
+            $table->enum('can_view_cost', ['yes', 'no'])->default('no');
 
             $table->timestamps();
         });

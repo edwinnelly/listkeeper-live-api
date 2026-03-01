@@ -39,68 +39,6 @@ class ProductListController extends Controller
         return view('product_list.products_listings', compact('fetchProducts'));
     }
 
-    //  public function sublocation_products()
-    // {
-    //     $businessKey = auth()->user()->active_business_key;
-    //     $location_id = auth()->user()->locations;
-    //     $owner_id = auth()->user()->id;
-
-    //     $fetchProducts = LocationProductList::with('locationProducts')->where('location_id',$location_id)->where('business_key',$businessKey)->where('owner_id',$owner_id)->get();
-
-    //     $getlocation_data = Business_locations::where('id',$location_id)->where('business_key',$businessKey)->where('owner_id',$owner_id)->firstOrFail();
-
-    //     return view('product_list.products_listings_location', compact('fetchProducts','getlocation_data'));
-
-    // }
-
-
-    // public function sublocation_products()
-    // {
-    //     $businessKey = auth()->user()->active_business_key;
-    //     $location_id = auth()->user()->locations; // Assuming this holds the location id
-    //     $owner_id = auth()->user()->id;
-
-
-
-    //     // ✅ Check if user has a location assigned
-    //     if (empty($location_id)) {
-    //         return redirect()->back()->with('error', 'No location assigned to your account.');
-    //     }
-
-    //     // ✅ Check if location exists for this user in users table
-    //     $getuser_data = User::where('id', $owner_id)
-    //         ->where('active_business_key', $businessKey)
-    //         ->where('locations', $location_id)
-    //         ->first();
-
-
-
-    //     if (!$getuser_data) {
-    //         return redirect()->back()->with('error', 'Your assigned location was not found.');
-    //     }
-
-    //     // ✅ Check if location also exists in business_locations
-    //     $getlocation_data = Business_locations::where('business_key', $businessKey)
-    //         ->where('owner_id', $owner_id)
-    //         ->firstOrFail();
-
-    //         $getBusinessInfo = Business_list::where('business_key',$businessKey)->where('owner_id',$owner_id)->first();
-
-    //         // dd($getBusinessInfo);
-
-
-
-    //     // ✅ Fetch products for the location
-    //     $fetchProducts = LocationProductList::with('locationProducts')->with('locationProducts_unit')->with('locationProducts_category')
-    //         ->where('location_id', $location_id)
-    //         ->where('business_key', $businessKey)
-    //         ->where('owner_id', $owner_id)
-    //         ->get();
-
-
-    //     return view('product_list.products_listings_location', compact('fetchProducts', 'getlocation_data','getBusinessInfo'));
-    // }
-
 
     public function sublocation_products()
     {

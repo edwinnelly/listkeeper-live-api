@@ -19,10 +19,46 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Http\JsonResponse;
 
-
 class LocationController extends Controller
 {
     public function index()
+    {
+        $user = auth()->user();
+
+        // Check authentication and active business
+        if (!$user || !$user->active_business_key) {
+            return response()->json([
+                'error' => 'No active business selected.'
+            ], 403);
+        }
+
+        // Permission check
+        if (!$user->hasPermission('locations_read')) {
+            return response()->json([
+                'error' => 'Feature Unavailable.'
+            ], 403);
+        }
+
+        // Fetch locations
+        $locations = Business_locations::with('user', 'business')
+            ->where('business_key', $user->active_business_key)
+            ->get()
+            ->map(function ($location) {
+                $location->encrypted_id = Crypt::encrypt($location->id);
+                return $location;
+            });
+
+        // Fetch staffs
+        $staffs = User::where('active_business_key', $user->active_business_key)
+            ->get();
+
+        return response()->json([
+            'locations' => $locations,
+            'staffs' => $staffs,
+        ]);
+    }
+
+    public function index_without_main()
     {
         $user = auth()->user();
 
@@ -41,6 +77,7 @@ class LocationController extends Controller
         //Fetch business locations linked to the user’s active business key
         $locations = Business_locations::with('user', 'business')
             ->where('business_key', $user->active_business_key)
+            ->where('head_office', null)
             ->get();
 
         $staffs = User::where('active_business_key', $user->active_business_key)
@@ -52,7 +89,6 @@ class LocationController extends Controller
             'staffs' => $staffs,
         ]);
     }
-
 
     public function store(Request $request)
     {
@@ -78,28 +114,34 @@ class LocationController extends Controller
             $locationCount = \App\Models\Business_locations::where('business_key', $businessKey)->count();
 
             if ($locationCount >= $subscription->locations) {
-
                 return response()->json([
                     'message' => "Maximum {$subscription->locations} locations allowed for your subscription."
                 ], 403);
             }
 
-            $validated = $request->validate([
-                // 'location_status' => 'nullable|in:on,off',
-                'location_name'   => 'required|string|max:255',
-                'address'         => 'required|string|max:255',
-                'city'            => 'required|string|max:255',
-                'state'           => 'required|string|max:30',
-                'phone'           => 'required|string|max:20',
-                'country'         => 'required|string|max:100',
-                'postal_code'     => 'nullable|string|max:20',
-
-            ]);
+            try {
+                $validated = $request->validate([
+                    'location_name'   => 'required|string|max:100',
+                    'address'         => 'required|string|max:150',
+                    'city'            => 'required|string|max:50',
+                    'state'           => 'required|string|max:50',
+                    'phone'           => 'required|string|max:20',
+                    'country'         => 'required|string|max:100',
+                    'postal_code'     => 'nullable|string|max:20',
+                ]);
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                DB::rollBack();
+                return response()->json([
+                    'error' => 'Validation failed',
+                    'messages' => $e->errors()
+                ], 403);
+            }
 
             $validated['owner_id']     = $ownerId;
             $validated['business_key'] = $businessKey;
             $validated['location_id']  = Str::uuid()->toString();
             $validated['manager_id']  = $ownerId;
+
             $locationName = trim(strtolower($validated['location_name']));
 
             $duplicate = \App\Models\Business_locations::where('business_key', $businessKey)
@@ -107,6 +149,7 @@ class LocationController extends Controller
                 ->exists();
 
             if ($duplicate) {
+                DB::rollBack();
                 return response()->json(['error' => 'This location already exists for your business.'], 409);
             }
 
@@ -134,13 +177,13 @@ class LocationController extends Controller
     public function update(Request $request, $id)
     {
         $request->validate([
-            'location_name' => 'required|string|max:255',
+            'location_name' => 'required|string|max:120',
             'phone' => 'nullable|string|max:20',
-            'address' => 'required|string|max:255',
-            'city' => 'required|string|max:100',
-            'state' => 'required|string|max:100',
+            'address' => 'required|string|max:200',
+            'city' => 'string|max:100',
+            'state' => 'string|max:100',
             'postal_code' => 'nullable|string|max:20',
-            'country' => 'required|string|max:100',
+            'country' => 'string|max:100',
             // 'status' => 'required|in:active,inactive,pending',
             'staffs' => 'exists:users,id',
             // 'manager_id' => 'required|exists:users,id',
@@ -148,8 +191,6 @@ class LocationController extends Controller
 
         try {
             DB::beginTransaction();
-
-
             $location = Business_locations::findOrFail($id);
 
             $authUser = Auth::user();

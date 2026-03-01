@@ -28,7 +28,6 @@ class Businesslist extends Controller
      * Fetch all businesses linked to the logged-in account
      */
 
-
     public function index()
     {
         try {

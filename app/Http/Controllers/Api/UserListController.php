@@ -217,6 +217,10 @@ class UserListController extends Controller
             $role->pos_read = 'yes';
             $role->pos_update = 'yes';
             $role->pos_delete = 'yes';
+            $role->can_edit_price = 'yes';
+            $role->can_adjust_stock = 'yes';
+            $role->can_transfer_stock = 'yes';
+            $role->can_view_cost = 'yes';
             $role->save();
 
             return response()->json([
@@ -446,7 +450,12 @@ class UserListController extends Controller
                 'pos_create',
                 'pos_read',
                 'pos_update',
-                'pos_delete'
+                'pos_delete',
+
+                'can_edit_price',
+                'can_adjust_stock',
+                'can_transfer_stock',
+                'can_view_cost'
             ];
 
             foreach ($permissions as $permission) {
