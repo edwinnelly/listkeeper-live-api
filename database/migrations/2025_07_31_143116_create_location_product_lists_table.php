@@ -28,6 +28,7 @@ return new class extends Migration
             $table->unsignedBigInteger('category_id')->nullable();
             $table->foreign('category_id')->references('id')->on('product_categories')->onDelete('cascade');
 
+          
             // $table->unsignedBigInteger('unit_id')->nullable();
             // $table->foreign('unit_id')->references('id')->on('product_units')->onDelete('cascade');
 
@@ -39,7 +40,9 @@ return new class extends Migration
             $table->decimal('cost_price', 15, 2)->nullable(); // Cost price (if needed)
             $table->decimal('sale_price', 15, 2)->nullable(); // Discounted or sale price (if applicable)
             $table->integer('stock_quantity')->default(0); // Available stock
-            $table->integer('low_stock_threshold')->default(10); // Warning threshold for low stock
+            $table->integer('low_stock_threshold')->default(0); // Warning threshold for low stock
+            $table->date('manufactured_at')->nullable(); // manufactured_at /  date
+            $table->date('expires_at')->nullable(); // expires_at /  date
 
             $table->timestamps();
         });

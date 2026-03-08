@@ -62,6 +62,11 @@ class Product_list extends Model
         return $this->belongsTo(Business_list::class, 'business_key', 'business_key');
     }
 
+       public function location()
+    {
+        return $this->belongsTo(Business_locations::class, 'location_id');
+    }
+
     public function unit()
     {
         return $this->belongsTo(Product_units::class);

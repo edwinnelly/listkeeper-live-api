@@ -21,6 +21,8 @@ class LocationProductList extends Model
         'sale_price',
         'stock_quantity',
         'low_stock_threshold',
+        'manufactured_at',
+        'expires_at'
     ];
 
     protected $casts = [

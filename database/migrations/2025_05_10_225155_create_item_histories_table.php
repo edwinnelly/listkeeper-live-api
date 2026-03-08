@@ -28,6 +28,11 @@ return new class extends Migration
             $table->unsignedBigInteger('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
+            $table->unsignedBigInteger('from_branch_id')->nullable();
+            $table->foreign('from_branch_id')->references('id')->on('business_locations')->onDelete('cascade');
+
+            $table->unsignedBigInteger('to_branch_id')->nullable();
+            $table->foreign('to_branch_id')->references('id')->on('business_locations')->onDelete('cascade');
             // Transaction Info
             $table->string('type'); // purchase, sale, return, adjustment, transfer, etc.
             $table->decimal('quantity', 15, 4);

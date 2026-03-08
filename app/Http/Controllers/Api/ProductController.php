@@ -13,9 +13,9 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log; // <-- ADD THIS LINE
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Crypt;
-
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
@@ -23,6 +23,9 @@ class ProductController extends Controller
 
     public function locationproducts($id)
     {
+        Log::info('API started', ['time' => microtime(true)]);
+        Log::info('API finished', ['time' => microtime(true)]);
+
         $user = Auth::user();
 
         if (!$user) {
@@ -76,7 +79,8 @@ class ProductController extends Controller
             ->where('location_id', $locationId)
             ->get()
             ->map(function ($item) use ($location) {
-                $item->encrypted_id = Crypt::encryptString($item->id);
+                $item->encrypted_id = Crypt::encrypt($item->id);
+                $item->encrypted_pid = Crypt::encrypt($item->product_id);
 
                 //correct location name
                 $item->location_name = $location->location_name;
@@ -87,23 +91,14 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'data' => $products,
-            'location_name' =>$location->location_name,
+            'location_name' => $location->location_name,
             'count' => $products->count()
         ]);
     }
 
-
-
     public function distributeProducts(Request $request)
     {
         try {
-            // Log the incoming request for debugging
-            Log::info('Distribution request received', [
-                'data' => $request->all(),
-                'user_id' => Auth::id(),
-                'business_key' => Auth::user()->active_business_key ?? 'not set'
-            ]);
-
             $ownerId = Auth::id();
             $businessKey = Auth::user()->active_business_key;
             $validated = $request->validate([
@@ -219,6 +214,8 @@ class ProductController extends Controller
                         'owner_id' => $ownerId,
                         'business_key' => $businessKey,
                         'location_id' => $destinationLocationId,
+                        'from_branch_id' => 1,
+                        'to_branch_id' => 1,
                         'type' => $quantity > 0 ? 'addition' : 'linked',
                         'quantity' => $quantity,
                         'cost' => $product->cost_price,
@@ -286,9 +283,6 @@ class ProductController extends Controller
             ], 500);
         }
     }
-
-
-
 
     public function index()
     {
@@ -464,21 +458,207 @@ class ProductController extends Controller
         }
     }
 
-
-
     /**
      * Show single product
      */
-    public function show($id)
-    {
-        $product = Product_list::where('id', $id)
-            ->where('business_key', Auth::user()->active_business_key)
-            ->firstOrFail();
+    // public function show($id)
+    // {
+    //     $id = Crypt::decrypt($id);
+
+    //     $product = LocationProductList::where('id', $id)
+    //         ->where('business_key', Auth::user()->active_business_key)
+    //         ->firstOrFail();
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'data' => $product
+    //     ]);
+    // }
+
+public function product_history($id)
+{
+    $user = Auth::user();
+
+    try {
+        // Decrypt ID
+        $decryptedId = Crypt::decrypt($id);
+
+        // Fetch history records
+        $products = ItemHistory::with([
+            'product:id,name,slug,description,sku,dimensions,image',
+            'location_info:id,location_name'
+        ])
+        ->where('business_key', $user->active_business_key)
+        ->where('product_id', $decryptedId)
+        ->get();
+
+        // Encrypt IDs
+        $products->transform(function ($item) {
+            $item->encrypted_id = Crypt::encrypt($item->id);
+            return $item;
+        });
+
+        // Get first record safely
+        $firstItem = $products->first();
 
         return response()->json([
             'success' => true,
-            'data' => $product
+            'count' => $products->count(),
+            'data' => $products,
+            'product_name' => $firstItem?->product?->name,
+            'location_name' => $firstItem?->location_info?->location_name,
         ]);
+
+    } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+
+        Log::error('Failed to decrypt product ID', [
+            'encrypted_id' => $id,
+            'error' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Invalid encrypted ID',
+        ], 400);
+
+    } catch (\Exception $e) {
+
+     
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Something went wrong',
+        ], 500);
+    }
+}
+
+
+// public function product_history($id)
+// {
+//     $user = Auth::user();
+//     try {
+//         // Decrypt ID
+//         $decryptedId = Crypt::decrypt($id);
+//         // Fetch all history records
+//         $products = ItemHistory::with([
+//             'product:id,name,slug,description,sku,dimensions,image'  
+//         ])
+//         ->where('business_key', $user->active_business_key)
+//         ->where('product_id', $decryptedId)
+//         ->get();
+
+//         // Add encrypted IDs
+//         $products->transform(function ($item) {
+//             $item->encrypted_id = Crypt::encrypt($item->id);
+//             return $item;
+//         });
+
+//         return response()->json([
+//             'success' => true,
+//             'count' => $products->count(),
+//             'data' => $products,
+//             'product_name' => $products->first()->name ?? null,
+//         ]);
+
+//     } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+
+//         Log::error('Failed to decrypt product ID', [
+//             'encrypted_id' => $id,
+//             'error' => $e->getMessage(),
+//         ]);
+
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Invalid encrypted ID',
+//         ], 400);
+
+//     } catch (\Exception $e) {
+
+//         Log::error('Unexpected error in product_history()', [
+//             'encrypted_id' => $id,
+//             'user_id' => $user->id,
+//             'error' => $e->getMessage(),
+//         ]);
+
+//         return response()->json([
+//             'success' => false,
+//             'message' => 'Something went wrong',
+//         ], 500);
+//     }
+// }
+
+    public function show($id)
+    {
+        $user = Auth::user();
+
+        try {
+            Log::info('LocationProductList show request received', [
+                'encrypted_id' => $id,
+                'user_id' => $user->id,
+                'business_key' => $user->active_business_key,
+            ]);
+
+            // Decrypt the ID safely
+            $decryptedId = Crypt::decrypt($id);
+
+            Log::info('ID decrypted successfully', [
+                'decrypted_id' => $decryptedId,
+            ]);
+
+            // Fetch single product with relationships
+            $product = LocationProductList::with([
+                'product:id,name,slug,description,sku,dimensions,discount_percentage,discount_start_date,discount_end_date,manufactured_at,expires_at,weight,length,width,height,is_active,is_featured,is_on_sale,is_out_of_stock,image,additional_info,barcode',
+                'category:id,name'
+            ])
+                ->where('business_key', $user->active_business_key)
+                ->where('id', $decryptedId)
+                ->firstOrFail();
+
+            // Encrypt ID for response
+            $product->encrypted_id = Crypt::encrypt($product->id);
+
+            Log::info('Product fetched successfully', [
+                'product_id' => $product->id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'id' => $decryptedId,
+                'data' => $product,
+            ]);
+        } catch (ModelNotFoundException $e) {
+            Log::warning('Product not found', [
+                'decrypted_id' => $decryptedId ?? null,
+                'user_id' => $user->id,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found',
+            ], 404);
+        } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+            Log::error('Failed to decrypt product ID', [
+                'encrypted_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid encrypted ID',
+            ], 400);
+        } catch (\Exception $e) {
+            Log::error('Unexpected error in LocationProductList show()', [
+                'encrypted_id' => $id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong',
+            ], 500);
+        }
     }
 
     public function update(Request $request, $id)
@@ -562,6 +742,68 @@ class ProductController extends Controller
             'data' => $product
         ]);
     }
+
+
+    public function update_product(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        try {
+
+            $decryptedId = Crypt::decrypt($id);
+
+            $product = LocationProductList::where('id', $decryptedId)
+                ->where('business_key', $user->active_business_key)
+                ->firstOrFail();
+
+            $validated = $request->validate([
+                // 'product_name' => 'sometimes|string|max:255',
+                'sku' => 'nullable|string|max:100',
+                // 'barcode' => 'nullable|string|max:100',
+                'stock_quantity' => 'nullable|numeric|min:0',
+                'low_stock_threshold' => 'nullable|numeric|min:0',
+                'manufactured_at' => 'nullable|date',
+                'expires_at' => 'nullable|date|after:manufactured_at'
+            ]);
+
+            $product->update($validated);
+
+            Log::info('Product updated successfully', [
+                'product_id' => $product->id,
+                'updated_fields' => $validated
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product updated successfully',
+                'data' => $product
+            ]);
+        } catch (\Exception $e) {
+
+            Log::error('Product update failed', [
+                'error' => $e->getMessage(),
+                'encrypted_id' => $id
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Product update failed'
+            ], 500);
+        }
+    }
+
+    // public function product_location_update(Request $request, $id)
+    // {
+    //     $user = Auth::user();
+
+    //     Log::info('Product location update request received', [
+    //         'encrypted_id' => $id,
+    //         'user_id' => $user->id ?? null,
+    //         'business_key' => $user->active_business_key ?? null,
+    //         'payload' => $request->all()
+    //     ]);
+
+    // }
 
 
     /**

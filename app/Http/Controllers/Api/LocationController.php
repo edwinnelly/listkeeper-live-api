@@ -76,9 +76,7 @@ class LocationController extends Controller
 
         //Fetch business locations linked to the user’s active business key
         $locations = Business_locations::with('user', 'business')
-            ->where('business_key', $user->active_business_key)
-            ->where('head_office', null)
-            ->get();
+            ->where('business_key', $user->active_business_key)->get();
 
         $staffs = User::where('active_business_key', $user->active_business_key)
             ->get();

@@ -69,6 +69,12 @@ class ItemHistory extends Model
         return $this->belongsTo(Business_list::class, 'location_id');
     }
 
+      public function location_info()
+    {
+        return $this->belongsTo(Business_locations::class, 'location_id');
+    }
+
+
     /**
      * Get the business associated with this history via business_key
      */

@@ -73,8 +73,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/delete-categories/{id}', [Product_category::class, 'deleteCategory']);
 
 
-    //location products
-     Route::get('/product-locations/{id}', [ProductController::class, 'locationproducts']);
 
     //routes Vendors managements:
     Route::get('/vendors', [vendors::class, 'index']);
@@ -86,10 +84,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //routes product-list managements:
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/addproducts', [ProductController::class, 'store']);
-    Route::get('/products/{id}', [ProductController::class, 'show']);
+    // Route::get('/products/{id}', [ProductController::class, 'show']);
     Route::put('/products/{id}', [ProductController::class, 'update']);
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
     Route::post('/distributeProducts', [ProductController::class, 'distributeProducts']);
 
 
+
+    //location products
+    Route::get('/product-locations/{id}', [ProductController::class, 'locationproducts']);
+    Route::get('/products_locaction_view/{id}', [ProductController::class, 'show']);
+    Route::get('/product_history/{id}', [ProductController::class, 'product_history']);
+    Route::put('/product_location_update/{id}', [ProductController::class, 'update_product']);
 });
