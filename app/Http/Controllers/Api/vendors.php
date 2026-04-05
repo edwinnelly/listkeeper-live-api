@@ -267,7 +267,7 @@ class vendors extends Controller
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                // 'message' => 'Invalid vendor identifier.',
+                // 'message' => 'Invalid vendor identifier.'$id,
                 'message' =>  $id,
             ], 400);
         }
