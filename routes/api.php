@@ -10,7 +10,21 @@ use App\Http\Controllers\Api\Product_category;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProductLocationController;
 use App\Http\Controllers\Api\vendors;
+use App\Http\Controllers\Api\Purchase_order_items;
+use App\Http\Controllers\Api\Purchase_order;
+use App\Http\Controllers\Api\PurchaseController;
 use App\Models\Product_categories;
+
+
+
+
+use App\Models\User;
+
+Route::get('/hello', function () {
+    return "Hello, this is plain text!";
+});
+
+
 
 
 // CSRF (no throttle)
@@ -26,6 +40,17 @@ Route::post('/logout', [AuthController::class, 'logout']);
 
 // Authenticated routes (no throttle)
 Route::middleware(['auth:sanctum'])->group(function () {
+
+
+    Route::get('/hellos', function () {
+        // Get all users
+        $users = User::all();
+
+        // Return as JSON
+        return response()->json($users);
+    });
+
+
 
     Route::get('/user', function () {
         return auth()->user()->load('user_roles')->load('businesses_one');
@@ -96,4 +121,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/products_locaction_view/{id}', [ProductController::class, 'show']);
     Route::get('/product_history/{id}', [ProductController::class, 'product_history']);
     Route::put('/product_location_update/{id}', [ProductController::class, 'update_product']);
+
+
+
+    //manage purchase order items
+    Route::post('/purchase_order_items', [PurchaseController::class, 'store']);
+    // Route::post('/purchase_order_items', [Purchase_order_items::class, 'store']);
 });

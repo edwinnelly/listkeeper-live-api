@@ -1,8 +1,15 @@
-// Fonts
-@import url('https://fonts.bunny.net/css?family=Nunito');
+// Import Bootstrap SCSS
+@import "bootstrap/scss/bootstrap";
 
-// Variables
-@import 'variables';
+// Your custom styles
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f8fafc;
+}
 
-// Bootstrap
-@import 'bootstrap/scss/bootstrap';
+// Example custom class
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
