@@ -126,5 +126,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     //manage purchase order items
     Route::post('/purchase_order_items', [PurchaseController::class, 'store']);
+     Route::get('/product_purchase', [PurchaseController::class, 'indexs']);
     // Route::post('/purchase_order_items', [Purchase_order_items::class, 'store']);
 });
