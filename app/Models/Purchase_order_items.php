@@ -18,4 +18,9 @@ class Purchase_order_items extends Model
         'unit_cost',
         'total_cost',
     ];
+
+    public function purchaseOrder()
+{
+    return $this->belongsTo(purchase_orders::class, 'purchase_order_id');
+}
 }

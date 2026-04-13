@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
-
+//  use Illuminate\Support\Facades\Crypt;
 
 
 class PurchaseController extends Controller
@@ -149,7 +149,32 @@ class PurchaseController extends Controller
 
 
 
-    public function indexs()
+    // public function purchase_order()
+    // {
+    //     $user = Auth::user();
+    //     $businessKey = $user->active_business_key;
+
+    //     if (!$businessKey) {
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'No active business selected.'
+    //         ], 403);
+    //     }
+
+    //     $orders = purchase_orders::with(['vendor', 'location'])
+    //         ->forBusiness($businessKey, $user->id)
+    //         ->orderBy('id', 'desc')
+    //         ->get();
+
+    //     return response()->json([
+    //         'status' => true,
+    //         'data' => $orders
+    //     ]);
+    // }
+
+
+
+    public function purchase_order()
     {
         $user = Auth::user();
         $businessKey = $user->active_business_key;
@@ -164,11 +189,66 @@ class PurchaseController extends Controller
         $orders = purchase_orders::with(['vendor', 'location'])
             ->forBusiness($businessKey, $user->id)
             ->orderBy('id', 'desc')
-            ->get();
+            ->get()
+            ->map(function ($order) {
+                $order->encrypted_id = urlencode(encrypt($order->id));
+                // unset($order->id); // optional
+                return $order;
+            });
 
         return response()->json([
             'status' => true,
             'data' => $orders
         ]);
     }
+
+
+    // public function purchaseOrderWithItems($id)
+    // {
+    //     $user = Auth::user();
+    //     $businessKey = $user->active_business_key;
+
+    //     if (!$businessKey) {
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'No active business selected.'
+    //         ], 403);
+    //     }
+
+    //     try {
+    //         // ✅ reverse URL encoding first, then decrypt
+    //         $decryptedId = decrypt(urldecode($id));
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'Invalid purchase order ID'
+    //         ], 400);
+    //     }
+
+    //     $order = purchase_orders::with([
+    //         'vendor:id,vendor_name',
+    //         'location:id,location_name',
+    //         'items:id,unit_cost,quantity,total_cost'
+    //     ])
+    //         ->where('id', $decryptedId)
+    //         ->forBusiness($businessKey, $user->id)
+    //         ->first();
+
+    //     if (!$order) {
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'Purchase order not found'
+    //         ], 404);
+    //     }
+
+    //     return response()->json([
+    //         'status' => true,
+    //         'data' => $order
+    //     ]);
+    // }
+
+
+
+
+    
 }

@@ -32,7 +32,9 @@ return new class extends Migration
             $table->unsignedBigInteger('product_id');
             $table->foreign('product_id')->references('id')->on('product_lists')->onDelete('cascade');
 
-            $table->integer('quantity');
+            $table->unsignedBigInteger('quantity');
+            $table->unsignedBigInteger('received_quantity');
+            $table->unsignedBigInteger('backordered_quantity');
             $table->decimal('unit_cost', 15, 2);
             $table->decimal('total_cost', 15, 2); // quantity × unit_cost
 
