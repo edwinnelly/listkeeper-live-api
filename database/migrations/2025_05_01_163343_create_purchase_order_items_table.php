@@ -24,6 +24,8 @@ return new class extends Migration
 
             $table->unsignedBigInteger('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
+            $table->unsignedBigInteger('location_id');
+            $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
 
             $table->unsignedBigInteger('purchase_order_id');

@@ -228,7 +228,8 @@ class PurchaseController extends Controller
     //     $order = purchase_orders::with([
     //         'vendor:id,vendor_name',
     //         'location:id,location_name',
-    //         'items:id,unit_cost,quantity,total_cost'
+    //         'items:id,unit_cost,quantity,total_cost',
+    //         'purchaseOrder:name'
     //     ])
     //         ->where('id', $decryptedId)
     //         ->forBusiness($businessKey, $user->id)
@@ -248,7 +249,57 @@ class PurchaseController extends Controller
     // }
 
 
+    public function purchaseOrderWithItems($id)
+    {
+        $user = Auth::user();
+        $businessKey = $user->active_business_key;
 
+        if (!$businessKey) {
+            return response()->json([
+                'status' => false,
+                'message' => 'No active business selected.'
+            ], 403);
+        }
 
-    
+        try {
+            $decryptedId = decrypt(urldecode($id));
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Invalid purchase order ID'
+            ], 400);
+        }
+
+        $order = purchase_orders::with([
+            'vendor:id,vendor_name',
+            'location:id,location_name',
+            'items' => function ($query) {
+                $query->select(
+                    'id',
+                    'purchase_order_id',
+                    'product_id',
+                    'quantity',
+                    'unit_cost',
+                    'total_cost'
+                )->with([
+                    'product:id,name'
+                ]);
+            }
+        ])
+            ->where('id', $decryptedId)
+            ->forBusiness($businessKey, $user->id)
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Purchase order not found'
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => true,
+            'data' => $order
+        ]);
+    }
 }
