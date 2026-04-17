@@ -449,7 +449,7 @@ class ProductController extends Controller
                 'data' => $product
             ], 201);
         } catch (\Exception $e) {
-            \Log::error('Product creation failed: ' . $e->getMessage(), ['request' => $request->all()]);
+            Log::error('Product creation failed: ' . $e->getMessage(), ['request' => $request->all()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create product',

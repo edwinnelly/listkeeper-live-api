@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\Business_list; // make sure model is imported
 use App\Models\purchase_orders;
 use App\Models\purchase_order_items;
+use App\Models\Purchase_order_items as ModelsPurchase_order_items;
 use App\Models\Roles;
 use App\Models\Subscriptions;
 use Illuminate\Support\Str;
@@ -301,5 +302,261 @@ class PurchaseController extends Controller
             'status' => true,
             'data' => $order
         ]);
+    }
+
+
+    public function update(Request $request, $id)
+    {
+        try {
+            // Decrypt the ID
+            $decryptedId = decrypt($id);
+        } catch (\Exception $e) {
+            Log::error('Failed to decrypt purchase order ID', [
+                'encrypted_id' => $id,
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid purchase order identifier'
+            ], 400);
+        }
+
+        // Find the purchase order
+        $purchaseOrder = purchase_orders::find($decryptedId);
+
+        if (!$purchaseOrder) {
+            Log::warning('Purchase order not found', [
+                'id' => $decryptedId,
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Purchase order not found'
+            ], 404);
+        }
+
+        // Check if order can be updated (only pending orders)
+        if ($purchaseOrder->status !== 'pending') {
+            Log::warning('Attempt to update non-pending purchase order', [
+                'order_id' => $purchaseOrder->id,
+                'order_number' => $purchaseOrder->order_number,
+                'current_status' => $purchaseOrder->status,
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Only pending orders can be updated. Current status: ' . $purchaseOrder->status
+            ], 422);
+        }
+
+        // Validate the request - matching your exact payload
+        $validator = Validator::make($request->all(), [
+            'vendor_id' => 'sometimes|integer|exists:vendors,id', // Read-only but validate if present
+            'location_id' => 'sometimes|integer|exists:business_locations,id', // Read-only but validate if present
+            'order_date' => 'required|date',
+            'expected_delivery_date' => 'nullable|date|after_or_equal:order_date',
+            'status' => 'required|in:pending,sent,received,partially_received,cancelled',
+            'subtotal' => 'required|numeric|min:0',
+            'tax' => 'nullable|numeric|min:0',
+            'discount' => 'nullable|numeric|min:0',
+            'discount_type' => 'nullable|in:fixed,percentage', // Note: Not in DB, just validate
+            'shipping_cost' => 'nullable|numeric|min:0',
+            'total_amount' => 'required|numeric|min:0',
+            'notes' => 'nullable|string|max:5000',
+            'terms' => 'nullable|string|max:5000',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|integer|exists:product_lists,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit_cost' => 'required|numeric|min:0',
+            'items.*.total' => 'required|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            Log::warning('Purchase order update validation failed', [
+                'order_id' => $purchaseOrder->id,
+                'order_number' => $purchaseOrder->order_number,
+                'errors' => $validator->errors()->toArray(),
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Store original data for logging
+            $originalData = [
+                'order_date' => $purchaseOrder->order_date,
+                'expected_delivery_date' => $purchaseOrder->expected_delivery_date,
+                'status' => $purchaseOrder->status,
+                'subtotal' => $purchaseOrder->subtotal,
+                'tax' => $purchaseOrder->tax,
+                'discount' => $purchaseOrder->discount,
+                'shipping_cost' => $purchaseOrder->shipping_cost ?? 0,
+                'total_amount' => $purchaseOrder->total_amount,
+                'notes' => $purchaseOrder->notes,
+                'terms' => $purchaseOrder->terms ?? '',
+            ];
+
+            // Update purchase order main fields
+            // IMPORTANT: vendor_id and location_id are NOT updated even if sent in request
+            $purchaseOrder->order_date = $request->order_date;
+            $purchaseOrder->expected_delivery_date = $request->expected_delivery_date;
+            $purchaseOrder->status = $request->status;
+            $purchaseOrder->subtotal = $request->subtotal;
+            $purchaseOrder->tax = $request->tax ?? 0;
+            $purchaseOrder->discount = $request->discount ?? 0;
+            $purchaseOrder->shipping_cost = $request->shipping_cost ?? 0;
+            $purchaseOrder->total_amount = $request->total_amount;
+            $purchaseOrder->notes = $request->notes;
+            $purchaseOrder->terms = $request->terms ?? '';
+            $purchaseOrder->save();
+
+            // Track changes for logging
+            $changes = [];
+            foreach ($originalData as $field => $oldValue) {
+                $newValue = $purchaseOrder->$field;
+                if ($oldValue != $newValue) {
+                    $changes[$field] = [
+                        'old' => $oldValue,
+                        'new' => $newValue
+                    ];
+                }
+            }
+
+            // Track updated items for logging
+            $updatedItems = [];
+            $itemErrors = [];
+
+            // Get existing items for this order (keyed by product_id for easy lookup)
+            $existingItems = purchase_order_items::where('purchase_order_id', $purchaseOrder->id)
+                ->get()
+                ->keyBy('product_id');
+
+            // Process items - Update existing items by product_id
+            foreach ($request->items as $index => $itemData) {
+                // Find item by product_id
+                $item = $existingItems->get($itemData['product_id']);
+
+                if (!$item) {
+                    $itemErrors[] = [
+                        'index' => $index,
+                        'product_id' => $itemData['product_id'],
+                        'error' => 'Item not found in this purchase order'
+                    ];
+
+                    Log::warning('Attempt to update non-existent item in purchase order', [
+                        'order_id' => $purchaseOrder->id,
+                        'order_number' => $purchaseOrder->order_number,
+                        'product_id' => $itemData['product_id'],
+                        'user_id' => auth()->id()
+                    ]);
+
+                    continue;
+                }
+
+                // Track changes before update
+                $oldQuantity = $item->quantity;
+                $oldUnitCost = $item->unit_cost;
+                $oldTotalCost = $item->total_cost;
+
+                // Update item fields
+                $item->quantity = $itemData['quantity'];
+                $item->unit_cost = $itemData['unit_cost'];
+                $item->total_cost = $itemData['total'];
+                $item->save();
+
+                // Log if changes were made
+                if (
+                    $oldQuantity != $itemData['quantity'] ||
+                    $oldUnitCost != $itemData['unit_cost'] ||
+                    $oldTotalCost != $itemData['total']
+                ) {
+
+                    $updatedItems[] = [
+                        'item_id' => $item->id,
+                        'product_id' => $item->product_id,
+                        'changes' => [
+                            'quantity' => ['old' => $oldQuantity, 'new' => $itemData['quantity']],
+                            'unit_cost' => ['old' => $oldUnitCost, 'new' => $itemData['unit_cost']],
+                            'total_cost' => ['old' => $oldTotalCost, 'new' => $itemData['total']]
+                        ]
+                    ];
+                }
+            }
+
+            // Check if all items were processed
+            if (count($request->items) !== count($existingItems)) {
+                Log::warning('Item count mismatch in purchase order update', [
+                    'order_id' => $purchaseOrder->id,
+                    'request_items_count' => count($request->items),
+                    'existing_items_count' => count($existingItems),
+                    'user_id' => auth()->id()
+                ]);
+                // Note: We don't throw an error here, just log it
+                // This allows partial updates if some items weren't found
+            }
+
+            // If there were critical item errors, throw exception to rollback
+            if (!empty($itemErrors)) {
+                throw new \Exception('One or more items could not be updated: ' . json_encode($itemErrors));
+            }
+
+            DB::commit();
+
+            // Log successful update
+            Log::info('Purchase order updated successfully', [
+                'order_id' => $purchaseOrder->id,
+                'order_number' => $purchaseOrder->order_number,
+                'user_id' => auth()->id(),
+                'fields_changed' => array_keys($changes),
+                'changes' => $changes,
+                'updated_items_count' => count($updatedItems),
+                'updated_items' => $updatedItems,
+                'discount_type_received' => $request->discount_type // Log but not saved
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Purchase order updated successfully',
+                'data' => [
+                    'id' => encrypt($purchaseOrder->id),
+                    'order_number' => $purchaseOrder->order_number,
+                    'status' => $purchaseOrder->status,
+                    'subtotal' => $purchaseOrder->subtotal,
+                    'tax' => $purchaseOrder->tax,
+                    'discount' => $purchaseOrder->discount,
+                    'shipping_cost' => $purchaseOrder->shipping_cost,
+                    'total_amount' => $purchaseOrder->total_amount,
+                    'terms' => $purchaseOrder->terms,
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error('Failed to update purchase order', [
+                'order_id' => $purchaseOrder->id,
+                'order_number' => $purchaseOrder->order_number,
+                'user_id' => auth()->id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'payload' => $request->except(['items']) // Don't log full items for brevity
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update purchase order. ' . $e->getMessage(),
+                'debug' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
     }
 }

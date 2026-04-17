@@ -128,5 +128,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/purchase_order_items', [PurchaseController::class, 'store']);
      Route::get('/product_purchase', [PurchaseController::class, 'purchase_order']);
      Route::get('/purchase-list/{id}', [PurchaseController::class, 'purchaseOrderWithItems']);
+     Route::put('/product_purchase_updated/{id}', [PurchaseController::class, 'update']);
     // Route::post('/purchase_order_items', [Purchase_order_items::class, 'store']);
 });

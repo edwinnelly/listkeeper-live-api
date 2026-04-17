@@ -44,11 +44,13 @@ return new class extends Migration
             $table->decimal('total_amount', 15, 2)->default(0.00);
             $table->decimal('amount_paid', 15, 2)->default(0.00);
             $table->decimal('balance_due', 15, 2)->default(0.00);
+            $table->decimal('shipping_cost', 15, 2)->default(0.00);
 
             // Payment info
             $table->enum('payment_status', ['unpaid', 'partial', 'paid'])->default('unpaid');
             $table->string('payment_method')->nullable(); // e.g. cash, bank, credit
             $table->text('payment_note')->nullable();
+            $table->text('terms')->nullable();
 
             // Notes and attachments
             $table->text('notes')->nullable();
