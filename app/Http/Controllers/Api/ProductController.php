@@ -23,9 +23,7 @@ class ProductController extends Controller
 
     public function locationproducts($id)
     {
-        Log::info('API started', ['time' => microtime(true)]);
-        Log::info('API finished', ['time' => microtime(true)]);
-
+       
         $user = Auth::user();
 
         if (!$user) {
