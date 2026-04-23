@@ -81,6 +81,10 @@ return new class extends Migration
             $table->enum('purchase_read', ['yes', 'no'])->default('no');
             $table->enum('purchase_update', ['yes', 'no'])->default('no');
             $table->enum('purchase_delete', ['yes', 'no'])->default('no');
+            
+            $table->enum('purchase_approve', ['yes', 'no'])->default('no');
+            $table->enum('purchase_received', ['yes', 'no'])->default('no');
+            $table->enum('purchase_cancel', ['yes', 'no'])->default('no');
 
 
             //manage  customer roles

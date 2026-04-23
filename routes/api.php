@@ -129,5 +129,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
      Route::get('/product_purchase', [PurchaseController::class, 'purchase_order']);
      Route::get('/purchase-list/{id}', [PurchaseController::class, 'purchaseOrderWithItems']);
      Route::put('/product_purchase_updated/{id}', [PurchaseController::class, 'update']);
+       // Approve purchase order
+    Route::put('/product_purchase_status/{id}', [PurchaseController::class, 'approve']);
+
+      // Receive items (partial or full)
+    Route::put('/purchase-receive/{id}', [PurchaseController::class, 'receiveItems']);
+    
+    // Quick receive - mark all as received
+    Route::post('/purchase-quick-receive/{id}', [PurchaseController::class, 'quickReceive']);
+    
+    // Get receiving summary
+    Route::get('/purchase-receiving-summary/{id}', [PurchaseController::class, 'receivingSummary']);
+    Route::delete('/product_purchase_delete/{id}', [PurchaseController::class, 'destroy']);
+
+    
     // Route::post('/purchase_order_items', [Purchase_order_items::class, 'store']);
 });

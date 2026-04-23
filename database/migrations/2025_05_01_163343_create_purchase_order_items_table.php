@@ -24,8 +24,6 @@ return new class extends Migration
 
             $table->unsignedBigInteger('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
-            $table->unsignedBigInteger('location_id');
-            $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
 
             $table->unsignedBigInteger('purchase_order_id');
@@ -34,9 +32,10 @@ return new class extends Migration
             $table->unsignedBigInteger('product_id');
             $table->foreign('product_id')->references('id')->on('product_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('quantity');
-            $table->unsignedBigInteger('received_quantity');
-            $table->unsignedBigInteger('backordered_quantity');
+            $table->unsignedBigInteger('quantity')->default(0);
+            $table->bigInteger('received_quantity')->default(0);
+            $table->bigInteger('backordered_quantity')->default(0);
+
             $table->decimal('unit_cost', 15, 2);
             $table->decimal('total_cost', 15, 2); // quantity × unit_cost
 

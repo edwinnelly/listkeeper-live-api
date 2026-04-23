@@ -35,8 +35,15 @@ return new class extends Migration
             $table->string('order_number')->unique();
             $table->date('order_date');
             $table->date('expected_delivery_date')->nullable();
-            $table->enum('status', ['pending','sent', 'received', 'partially_received', 'cancelled'])->default('pending');
 
+            $table->timestamp('approved_date')->nullable();
+            $table->timestamp('received_date')->nullable();
+            $table->date('posting_date')->nullable();
+
+            // $table->date('received_date')->nullable();
+            // $table->date('approve_date')->nullable();
+
+            $table->enum('status', ['draft', 'pending', 'approved', 'received', 'cancelled', 'partially_received'])->default('pending');
             // Financials
             $table->decimal('subtotal', 15, 2)->default(0.00);
             $table->decimal('tax', 15, 2)->default(0.00);
