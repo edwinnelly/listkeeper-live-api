@@ -26,6 +26,13 @@ return new class extends Migration
             $table->unsignedBigInteger('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
+            $table->unsignedBigInteger('posted_by')->nullable()->change();
+
+            $table->foreign('posted_by')
+                ->references('id')
+                ->on('users')
+                ->onDelete('set null');
+
 
             //Supplier
             $table->unsignedBigInteger('vendors_id');
@@ -56,6 +63,7 @@ return new class extends Migration
             // Payment info
             $table->enum('payment_status', ['unpaid', 'partial', 'paid'])->default('unpaid');
             $table->string('payment_method')->nullable(); // e.g. cash, bank, credit
+            $table->string('posted_by_name')->nullable(); // e.g. cash, bank, credit
             $table->text('payment_note')->nullable();
             $table->text('terms')->nullable();
 

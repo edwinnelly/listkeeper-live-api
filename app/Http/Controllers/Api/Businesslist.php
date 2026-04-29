@@ -28,15 +28,24 @@ class Businesslist extends Controller
      * Fetch all businesses linked to the logged-in account
      */
 
+
     public function index()
     {
         try {
-            $userId = Auth::id();
+            $user = Auth::user();
+            $userId = $user->id;
+
+            if ($user->creator !== 'Host') {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Unauthorized access',
+                ], 403);
+            }
 
             $total = Business_list::where('owner_id', $userId)->count();
-            $threshold = 1000;
 
-            if ($total <= $threshold) {
+            // Small dataset: return all at once
+            if ($total <= 1000) {
                 $businesses = Business_list::where('owner_id', $userId)
                     ->orderBy('id')
                     ->get()
@@ -45,12 +54,13 @@ class Businesslist extends Controller
                     });
 
                 return response()->json([
-                    'status'  => true,
+                    'status' => true,
                     'message' => 'Business list fetched successfully',
-                    'data'    => $businesses,
+                    'data' => $businesses,
                 ], 200);
             }
 
+            // Large dataset: stream response
             return response()->stream(function () use ($userId) {
                 echo '[';
                 $first = true;
@@ -61,7 +71,7 @@ class Businesslist extends Controller
                         foreach ($businesses as $business) {
                             $business->ekey = Crypt::encrypt($business->id);
 
-                            if (! $first) {
+                            if (!$first) {
                                 echo ',';
                             }
 
@@ -72,18 +82,23 @@ class Businesslist extends Controller
 
                 echo ']';
             }, 200, [
-                'Content-Type'  => 'application/json',
+                'Content-Type' => 'application/json',
                 'Cache-Control' => 'no-cache',
             ]);
         } catch (\Throwable $e) {
-            Log::error('Business index error', ['exception' => $e]);
+            Log::error('Business index error', [
+                'exception' => $e,
+                'user_id' => Auth::id(),
+            ]);
 
             return response()->json([
-                'status'  => false,
+                'status' => false,
                 'message' => 'An error occurred while fetching business data.',
             ], 500);
         }
     }
+
+
 
     public function store(Request $request)
     {
@@ -106,7 +121,15 @@ class Businesslist extends Controller
         ]);
 
         try {
-            $user = Auth::user(); // Get the logged-in user info
+            $user = Auth::user();
+            $userId = $user->id;
+
+            if ($user->creator !== 'Host') {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Unauthorized access',
+                ], 403);
+            }
 
             // Check business limit
             $count_business = Business_list::where('owner_id', Auth::id())->count();
@@ -249,11 +272,11 @@ class Businesslist extends Controller
                 'status' => true,
                 'message' => 'Business created successfully',
                 'data' => $business
-                // 'datas' => $ren,
+
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error in Businesslist@store: ' . $e->getMessage());
+            // Log::error('Error in Businesslist@store: ' . $e->getMessage());
 
             return response()->json([
                 'status' => false,
@@ -268,6 +291,13 @@ class Businesslist extends Controller
     //get the business info
     public function business_details($id)
     {
+        $user = Auth::user();
+        if ($user->creator !== 'Host') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized access',
+            ], 403);
+        }
         try {
             // Decrypt business key if encrypted
             $decryptedId = Crypt::decrypt($id); // remove Crypt if not encrypted
@@ -351,7 +381,7 @@ class Businesslist extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            Log::error('Business fetch error: ' . $e->getMessage());
+            // Log::error('Business fetch error: ' . $e->getMessage());
 
             return response()->json([
                 'message' => 'An error occurred while fetching business.'
@@ -363,9 +393,17 @@ class Businesslist extends Controller
     //switch business
     public function switchBusiness(string $id): JsonResponse
     {
+
         try {
             // Ensure the user is authenticated
             $user = Auth::user();
+
+            if ($user->creator !== 'Host') {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Unauthorized access',
+                ], 403);
+            }
             if (!$user) {
                 return response()->json([
                     'status'  => 'error',
@@ -406,65 +444,18 @@ class Businesslist extends Controller
     }
 
 
-    // public function updatebusiness(Request $request, $id)
-    // {
-    //     try {
-    //         // 🔐 Decrypt ID if encrypted
-    //         $decryptedId = Crypt::decrypt($id); // remove if ID isn't encrypted
 
-    //         // 🔍 Find the business that belongs to the logged-in user
-    //         $business = Business_list::where('owner_id', Auth::id())
-    //             ->where('id', $decryptedId)
-    //             ->first();
-
-    //         if (!$business) {
-    //             return response()->json([
-    //                 'message' => 'Business not found.'
-    //             ], 404);
-    //         }
-
-    //         // ✅ Validate incoming data
-    //         $validatedData = $request->validate([
-    //             'business_name' => 'sometimes|string|max:255',
-    //             'industry_type' => 'sometimes|string|max:255',
-    //             'website' => 'nullable|url|max:255',
-    //             'phone' => 'nullable|string|max:20',
-    //             'state' => 'nullable|string|max:255',
-    //             'city' => 'nullable|string|max:255',
-    //             'country' => 'nullable|string|max:255',
-    //             'address' => 'nullable|string|max:500',
-    //             'currency' => 'nullable|string|max:10',
-    //             'about_business' => 'nullable|string',
-    //             'description' => 'nullable|string',
-    //             'logo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-    //             // 'logo' => 'nullable', // 👈 changed
-    //         ]);
-
-    //         // 🖼️ Handle logo upload (if provided)
-    //         if ($request->hasFile('logo')) {
-    //             $file = $request->file('logo');
-    //             $path = $file->store('business_logo', 'public');
-    //             $validatedData['logo'] = $path;
-    //         }
-
-    //         // 💾 Update business
-    //         $business->update($validatedData);
-
-    //         return response()->json([
-    //             'message' => 'Business updated successfully.',
-    //             'business' => $business
-    //         ], 200);
-    //     } catch (\Exception $e) {
-    //         Log::error('Business update error: ' . $e->getMessage());
-
-    //         return response()->json([
-    //             'message' => 'An error occurred while updating the business.'
-    //         ], 500);
-    //     }
-    // }
 
     public function updatebusiness(Request $request, $id)
     {
+        $user = Auth::user();
+
+        if ($user->creator !== 'Host') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized access',
+            ], 403);
+        }
         try {
             // Decrypt ID if encrypted
             $decryptedId = Crypt::decrypt($id);
@@ -480,7 +471,6 @@ class Businesslist extends Controller
                 ], 404);
             }
 
-            // ✅ Validate incoming data
             $validatedData = $request->validate([
                 'business_name' => 'sometimes|string|max:255',
                 'industry_type' => 'sometimes|string|max:255',
@@ -534,6 +524,14 @@ class Businesslist extends Controller
 
     public function deleteBusiness(Request $request, $id)
     {
+        $user = Auth::user();
+
+        if ($user->creator !== 'Host') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized access',
+            ], 403);
+        }
         try {
             //Decrypt ID if you encrypt IDs in URLs
             $decryptedId = Crypt::decrypt($id);
@@ -550,7 +548,7 @@ class Businesslist extends Controller
                 ], 404);
             }
 
-            // 🖼️ Delete logo file if it exists
+            // Delete logo file if it exists
             if ($business->logo && Storage::exists($business->logo)) {
                 Storage::delete($business->logo);
             }
@@ -568,7 +566,7 @@ class Businesslist extends Controller
                 'message' => 'Invalid business ID provided.',
             ], 400);
         } catch (\Exception $e) {
-            Log::error('Business deletion error: ' . $e->getMessage());
+            // Log::error('Business deletion error: ' . $e->getMessage());
 
             return response()->json([
                 'status' => 'error',
@@ -578,57 +576,16 @@ class Businesslist extends Controller
     }
 
 
-    // public function suspendBusiness(Request $request, $id)
-    // {
-    //     try {
-    //         // Decrypt ID if you encrypt IDs
-    //         $decryptedId = Crypt::decrypt($id);
-
-    //         // 🔍 Find the business owned by the logged-in user
-    //         $business = Business_list::where('owner_id', Auth::id())
-    //             ->where('id', $decryptedId)
-    //             ->first();
-
-    //         if (!$business) {
-    //             return response()->json([
-    //                 'status' => 'error',
-    //                 'message' => 'Business not found or unauthorized.',
-    //             ], 404);
-    //         }
-
-    //         // ✅ Validate input
-    //         $validated = $request->validate([
-    //             'status' => 'required|string|in:active,inactive,suspended',
-
-    //         ]);
-
-    //         // 📝 Update business status and optional reason
-    //         $business->status = $validated['status'];
-
-    //         $business->save();
-
-    //         return response()->json([
-    //             'status' => 'success',
-
-    //         ], 200);
-    //     } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
-    //         return response()->json([
-    //             'status' => 'error',
-    //             'message' => 'Invalid business ID provided.',
-    //         ], 400);
-    //     } catch (\Exception $e) {
-    //         Log::error('Business suspend error: ' . $e->getMessage());
-
-    //         return response()->json([
-    //             'status' => 'error',
-    //             'message' => 'An error occurred while updating business status.',
-    //         ], 500);
-    //     }
-    // }
-
-
     public function suspendBusiness(Request $request, $id)
     {
+        $user = Auth::user();
+
+        if ($user->creator !== 'Host') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized access',
+            ], 403);
+        }
         try {
             //Decrypt the business ID (remove if you’re not encrypting IDs)
             $businessId = Crypt::decrypt($id);

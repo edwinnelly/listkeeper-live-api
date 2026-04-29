@@ -33,8 +33,28 @@ class PurchaseController extends Controller
     public function store(Request $request)
     {
 
+        $user = auth()->user();
+
+        // Check if user is authenticated and has an active business
+        if (!$user || !$user->active_business_key) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No active business selected.'
+            ], 403);
+        }
+
+        // Check permission for vendors
+        if (!$user->hasPermission('purchase_create')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Feature unavailable.'
+            ], 403);
+        }
+        /**
+         * VALIDATION RULES
+         */
         $validator = Validator::make($request->all(), [
-            'supplier_id' => 'required|exists:vendors,id', // ✅ FIXED TABLE
+            'supplier_id' => 'required|exists:vendors,id',
             'location_id' => 'required|exists:business_locations,id',
             'order_date' => 'required|date',
             'expected_delivery_date' => 'nullable|date|after_or_equal:order_date',
@@ -45,77 +65,121 @@ class PurchaseController extends Controller
             'items.*.unit_cost' => 'required|numeric|min:0',
         ]);
 
-        if ($validator->fails()) {
+
+        /**
+         * LOAD LOCATION PRODUCTS
+         */
+        $locationProductIds = DB::table('location_product_lists')
+            ->where('location_id', $request->location_id)
+            ->pluck('product_id')
+            ->toArray();
+
+        /**
+         * EARLY EXIT: NO PRODUCTS IN LOCATION
+         */
+        if (empty($locationProductIds)) {
             return response()->json([
                 'status' => false,
+                'message' => 'This location has no products assigned yet. Please assign products before creating a purchase order.'
+            ], 422);
+        }
+
+        /**
+         * CUSTOM VALIDATION
+         */
+        $validator->after(function ($validator) use ($request, $locationProductIds) {
+
+            foreach ($request->items as $index => $item) {
+
+                $productId = (int) $item['product_id'];
+
+                if (!in_array($productId, array_map('intval', $locationProductIds))) {
+                    $validator->errors()->add(
+                        "items.$index.product_id",
+                        "Some of the product you selected is not assigned to the selected location or branch."
+                    );
+                }
+            }
+        });
+
+        /**
+         * VALIDATION FAIL RESPONSE
+         */
+        if ($validator->fails()) {
+
+            return response()->json([
+                'status' => false,
+                'message' => collect($validator->errors()->toArray())->flatten()->first() ?? 'One or more fields are invalid.',
                 'errors' => $validator->errors()
             ], 422);
         }
 
+        /**
+         * AUTH CONTEXT
+         */
         $user = Auth::user();
         $businessKey = $user->active_business_key;
-        $ownerId = $user->id;
 
         if (!$businessKey) {
-            return response()->json(['error' => 'No active business selected.'], 403);
+            return response()->json([
+                'status' => false,
+                'message' => 'No active business selected.'
+            ], 403);
         }
+
+        /**
+         * FETCH BUSINESS
+         */
+        $business = Business_list::where('business_key', $businessKey)->firstOrFail();
 
         DB::beginTransaction();
 
         try {
-            //Generate Order Number
+
             $orderNumber = 'PO-' . now()->format('Ymd') . '-' . strtoupper(Str::random(5));
 
             $subtotal = 0;
 
-            //Calculate subtotal
             foreach ($request->items as $item) {
                 $subtotal += $item['quantity'] * $item['unit_cost'];
             }
 
-            $tax = 0;
-            $discount = 0;
-            $totalAmount = $subtotal + $tax - $discount;
-            $amountPaid = 0;
-            $balanceDue = $totalAmount;
-
-            //Insert Purchase Order
             $purchaseOrderId = DB::table('purchase_orders')->insertGetId([
-                'owner_id' => $ownerId,
+                'owner_id' => $business->owner_id,
                 'business_key' => $businessKey,
                 'location_id' => $request->location_id,
-                'vendors_id' => $request->supplier_id, // ✅ FIXED
+                'vendors_id' => $request->supplier_id,
                 'order_number' => $orderNumber,
                 'order_date' => $request->order_date,
                 'expected_delivery_date' => $request->expected_delivery_date,
                 'status' => 'pending',
                 'subtotal' => $subtotal,
-                'tax' => $tax,
-                'discount' => $discount,
-                'total_amount' => $totalAmount,
-                'amount_paid' => $amountPaid,
-                'balance_due' => $balanceDue,
+                'tax' => 0,
+                'discount' => 0,
+                'total_amount' => $subtotal,
+                'amount_paid' => 0,
+                'balance_due' => $subtotal,
+                'posted_by' => $user->id,
+                'posted_by_name' => $user->name,
                 'payment_status' => 'unpaid',
                 'notes' => $request->notes,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            //Insert Items
             $itemsToInsert = [];
 
             foreach ($request->items as $item) {
-                $lineTotal = $item['quantity'] * $item['unit_cost'];
 
                 $itemsToInsert[] = [
-                    'owner_id' => $ownerId,
+                    'owner_id' => $business->owner_id,
                     'business_key' => $businessKey,
                     'location_id' => $request->location_id,
                     'purchase_order_id' => $purchaseOrderId,
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
                     'unit_cost' => $item['unit_cost'],
-                    'total_cost' => $lineTotal,
+                    'total_cost' => $item['quantity'] * $item['unit_cost'],
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
@@ -127,24 +191,21 @@ class PurchaseController extends Controller
 
             return response()->json([
                 'status' => true,
-                'message' => 'Purchase order created successfully',
+                'message' => 'Purchase order created successfully.',
                 'data' => [
                     'purchase_order_id' => $purchaseOrderId,
                     'order_number' => $orderNumber,
-                    'total_amount' => $totalAmount
+                    'total_amount' => $subtotal
                 ]
             ], 201);
         } catch (\Exception $e) {
-            DB::rollBack();
 
-            Log::error('Purchase Order Error', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+            DB::rollBack();
 
             return response()->json([
                 'status' => false,
-                'message' => $e->getMessage()
+                'message' => 'We could not process your purchase order. Please try again.',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -154,6 +215,8 @@ class PurchaseController extends Controller
     {
         $user = Auth::user();
         $businessKey = $user->active_business_key;
+        $locations = $user->locations;
+
 
         if (!$businessKey) {
             return response()->json([
@@ -162,21 +225,89 @@ class PurchaseController extends Controller
             ], 403);
         }
 
-        $orders = purchase_orders::with(['vendor', 'location'])
-            ->forBusiness($businessKey, $user->id)
-            ->orderBy('id', 'desc')
-            ->get()
-            ->map(function ($order) {
-                $order->encrypted_id = urlencode(encrypt($order->id));
-                // unset($order->id); // optional
-                return $order;
-            });
+        if (!$user->hasPermission('purchase_process_all')) {
 
-        return response()->json([
-            'status' => true,
-            'data' => $orders
-        ]);
+            $orders = purchase_orders::with(['vendor', 'location'])
+                ->where('business_key', $businessKey)->where('location_id', $user->locations)
+                ->orderBy('id', 'desc')
+                ->get()
+                ->map(function ($order) {
+                    $order->encrypted_id = urlencode(encrypt($order->id));
+                    return $order;
+                });
+
+            return response()->json([
+                'status' => true,
+                'data' => $orders,
+                'bin' => $locations
+            ]);
+        } else {
+
+            $orders = purchase_orders::with(['vendor', 'location'])
+                ->where('business_key', $businessKey)
+                ->orderBy('id', 'desc')
+                ->get()
+                ->map(function ($order) {
+                    $order->encrypted_id = urlencode(encrypt($order->id));
+                    // unset($order->id); // optional
+                    return $order;
+                });
+
+            return response()->json([
+                'status' => true,
+                'data' => $orders,
+                'bin' => $locations
+            ]);
+        }
     }
+
+
+
+
+
+
+
+    public function purchase_order_approved()
+    {
+        $user = Auth::user();
+        $businessKey = $user->active_business_key;
+        $locations = $user->locations;
+
+
+        if (!$businessKey) {
+            return response()->json([
+                'status' => false,
+                'message' => 'No active business selected.'
+            ], 403);
+        }
+
+        if (!$user->hasPermission('purchase_process_all')) {
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Not Allowed'
+            ]);
+        } else {
+
+            $orders = purchase_orders::with(['vendor', 'location'])
+                ->where('business_key', $businessKey)->where('status', 'received')
+                ->orderBy('id', 'desc')
+                ->get()
+                ->map(function ($order) {
+                    $order->encrypted_id = urlencode(encrypt($order->id));
+                    // unset($order->id); // optional
+                    return $order;
+                });
+
+            return response()->json([
+                'status' => true,
+                'data' => $orders,
+                'bin' => $locations
+            ]);
+        }
+    }
+
+
 
     public function purchaseOrderWithItems($id)
     {
@@ -198,9 +329,11 @@ class PurchaseController extends Controller
                 'message' => 'Invalid purchase order ID'
             ], 400);
         }
+        //fetch the business info uisng the business_key
+        $business = Business_list::where('business_key', $businessKey)->firstOrFail();
 
         $order = purchase_orders::with([
-            'vendor:id,vendor_name',
+            'vendor:id,vendor_name,phone,email,address,tax_id',
             'location:id,location_name',
             'items' => function ($query) {
                 $query->select(
@@ -209,14 +342,15 @@ class PurchaseController extends Controller
                     'product_id',
                     'quantity',
                     'unit_cost',
-                    'total_cost'
+                    'total_cost',
+                    'received_quantity'
                 )->with([
                     'product:id,name'
                 ]);
             }
         ])
             ->where('id', $decryptedId)
-            ->forBusiness($businessKey, $user->id)
+            ->forBusiness($businessKey, $business->owner_id)
             ->first();
 
         if (!$order) {
