@@ -21,6 +21,273 @@ use Illuminate\Support\Facades\DB;
 class ProductController extends Controller
 {
 
+
+
+
+/**
+ * Display a paginated, filtered, and searchable list of products.
+ * 
+ * This method handles server-side pagination, search, filtering, and sorting
+ * for the product catalog. It supports case-insensitive search across multiple
+ * fields and returns encrypted IDs for secure frontend operations.
+ *
+ * Query Parameters:
+ * - page: int (default: 1) - Current page number
+ * - per_page: int (default: 50, max: 100) - Number of items per page
+ * - search: string (optional) - Case-insensitive search term for name, SKU, and description
+ * - status: 'all'|'active'|'inactive' (default: 'all') - Filter by product active status
+ * - stock: 'all'|'in_stock'|'low_stock'|'out_of_stock' (default: 'all') - Filter by stock level
+ * - category: string|int (optional) - Filter by category ID
+ * - price_min: numeric (optional) - Minimum price filter
+ * - price_max: numeric (optional) - Maximum price filter
+ * - sort_by: 'name'|'price'|'stock_quantity'|'created_at' (default: 'name') - Sort field
+ * - sort_order: 'asc'|'desc' (default: 'asc') - Sort direction
+ *
+ * @param Request $request The incoming HTTP request
+ * @return \Illuminate\Http\JsonResponse
+ */
+public function index(Request $request)
+{
+    // ==========================================
+    // STEP 1: AUTHENTICATION VERIFICATION
+    // ==========================================
+    
+    // Get the currently authenticated user from the request
+    // Auth::user() returns null if no user is authenticated
+    $user = Auth::user();
+
+    // Return 401 Unauthorized if user is not authenticated
+    // This prevents unauthorized access to product data
+    if (!$user) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Unauthenticated'
+        ], 401);
+    }
+
+    // ==========================================
+    // STEP 2: BUSINESS CONTEXT VALIDATION
+    // ==========================================
+    
+    // Check if the user has an active business selected
+    // active_business_key is required to scope products to a specific business
+    // This ensures multi-tenancy isolation
+    if (empty($user->active_business_key)) {
+        return response()->json([
+            'success' => false,
+            'message' => 'No active business selected'
+        ], 400);
+    }
+
+    // ==========================================
+    // STEP 3: PAGINATION CONFIGURATION
+    // ==========================================
+    
+    // Get the requested number of items per page (default: 50)
+    // This allows the frontend to control page size
+    $perPage = $request->get('per_page', 50);
+    
+    // Cap the maximum page size at 100 items
+    // This prevents performance issues and abuse (e.g., requesting 10,000 items at once)
+    $perPage = min($perPage, 100);
+    
+    // ==========================================
+    // STEP 4: BASE QUERY SETUP
+    // ==========================================
+    
+    // Start building the database query
+    // Scoped to the user's active business to ensure data isolation
+    // All subsequent where clauses will be added to this base query
+    $query = Product_list::where('business_key', $user->active_business_key);
+    
+    // ==========================================
+    // STEP 5: SEARCH FUNCTIONALITY
+    // ==========================================
+    
+    // Apply search filter only if a search term is provided
+    // Uses "has" to check if the key exists and is not empty
+    if ($request->has('search') && !empty($request->search)) {
+        $search = $request->search;
+        
+        // Group search conditions in a where clause
+        // The function groups all OR conditions together
+        // This prevents search OR conditions from breaking other AND filters
+        $query->where(function($q) use ($search) {
+            // PostgreSQL ILIKE is case-insensitive by default
+            //
+            // The % wildcards allow partial matching:
+            //   - "%search%" matches any string containing "search"
+            //   - "%search" matches strings ending with "search"
+            //   - "search%" matches strings starting with "search"
+            $q->where('name', 'ILIKE', "%{$search}%")
+              ->orWhere('sku', 'ILIKE', "%{$search}%")
+              ->orWhere('description', 'ILIKE', "%{$search}%");
+        });
+    }
+    
+    // ==========================================
+    // STEP 6: STATUS FILTER
+    // ==========================================
+    
+    // Filter products by their active/inactive status
+    // 'all' = no filter applied (default behavior)
+    // 'active' = only show products where is_active is true
+    // 'inactive' = only show products where is_active is false
+    if ($request->has('status') && $request->status !== 'all') {
+        if ($request->status === 'active') {
+            $query->where('is_active', true);
+        } elseif ($request->status === 'inactive') {
+            $query->where('is_active', false);
+        }
+    }
+    
+    // ==========================================
+    // STEP 7: STOCK LEVEL FILTER
+    // ==========================================
+    
+    // Filter products by their stock availability status
+    // This allows users to quickly find products that need attention
+    if ($request->has('stock') && $request->stock !== 'all') {
+        if ($request->stock === 'in_stock') {
+            // Products that are not marked as out of stock AND have quantity > 0
+            // Both conditions must be true for a product to be "in stock"
+            $query->where('is_out_of_stock', false)
+                  ->where('stock_quantity', '>', 0);
+                  
+        } elseif ($request->stock === 'low_stock') {
+            // Products that are not out of stock but have quantity at or below threshold
+            // COALESCE(low_stock_threshold, 5) means:
+            //   - Use low_stock_threshold value if it's set
+            //   - Otherwise use 5 as the default threshold
+            // This is a database-level function that handles NULL values
+            $query->where('is_out_of_stock', false)
+                  ->where('stock_quantity', '>', 0)
+                  ->whereRaw('stock_quantity <= COALESCE(low_stock_threshold, 5)');
+                  
+        } elseif ($request->stock === 'out_of_stock') {
+            // Products that are either:
+            //   - Manually marked as out of stock, OR
+            //   - Have stock_quantity of 0 or less (auto-detected)
+            // The where(function) groups these OR conditions together
+            $query->where(function($q) {
+                $q->where('is_out_of_stock', true)
+                  ->orWhere('stock_quantity', '<=', 0);
+            });
+        }
+    }
+    
+    // ==========================================
+    // STEP 8: CATEGORY FILTER
+    // ==========================================
+    
+    // Filter products by category ID
+    // Validates that:
+    //   1. Category parameter exists
+    //   2. Category is not set to 'all' (meaning no filter)
+    //   3. Category value is numeric (prevents SQL injection attempts)
+    if ($request->has('category') && $request->category !== 'all' && is_numeric($request->category)) {
+        $query->where('category_id', $request->category);
+    }
+    
+    // ==========================================
+    // STEP 9: PRICE RANGE FILTER
+    // ==========================================
+    
+    // Apply minimum price filter
+    // Products with price >= price_min will be included
+    // Validates that price_min is present and numeric
+    if ($request->has('price_min') && is_numeric($request->price_min)) {
+        $query->where('price', '>=', $request->price_min);
+    }
+    
+    // Apply maximum price filter
+    // Products with price <= price_max will be included
+    // Validates that price_max is present and numeric
+    if ($request->has('price_max') && is_numeric($request->price_max)) {
+        $query->where('price', '<=', $request->price_max);
+    }
+    
+    // ==========================================
+    // STEP 10: SORTING
+    // ==========================================
+    
+    // Get sort preferences from request (defaults: sort by name, ascending)
+    $sortBy = $request->get('sort_by', 'name');
+    $sortOrder = $request->get('sort_order', 'asc');
+    
+    // Whitelist of allowed sort fields for security
+    // This prevents SQL injection through the sort parameter
+    // Only these specific columns can be used for sorting
+    $allowedSortFields = ['name', 'price', 'stock_quantity', 'created_at'];
+    
+    // Apply sorting only if the requested field is in the whitelist
+    if (in_array($sortBy, $allowedSortFields)) {
+        // Convert sort order to either 'asc' or 'desc'
+        // If any value other than 'desc' is provided, default to 'asc'
+        $query->orderBy($sortBy, $sortOrder === 'desc' ? 'desc' : 'asc');
+    }
+    
+    // ==========================================
+    // STEP 11: EAGER LOAD RELATIONSHIPS
+    // ==========================================
+    
+    // Eager load the category relationship to prevent N+1 query problem
+    // Only load id and name columns to optimize performance
+    // Without this, each product would trigger a separate query for its category
+    $query->with(['category:id,name']);
+    
+    // ==========================================
+    // STEP 12: EXECUTE PAGINATED QUERY
+    // ==========================================
+    
+    // Execute the query with pagination
+    // This returns a LengthAwarePaginator instance containing:
+    //   - The paginated results
+    //   - Pagination metadata (total count, current page, etc.)
+    $products = $query->paginate($perPage);
+    
+    // ==========================================
+    // STEP 13: ENCRYPT PRODUCT IDs
+    // ==========================================
+    
+    // Transform each product in the current page's collection
+    // getCollection() gets the items for the current page
+    // transform() modifies each item in-place
+    $products->getCollection()->transform(function ($product) {
+        // Add an encrypted version of the product ID
+        // This is used by the frontend for secure operations
+        // Prevents exposing raw database IDs if needed for security
+        $product->encrypted_id = Crypt::encryptString($product->id);
+        return $product;
+    });
+
+    // ==========================================
+    // STEP 14: RETURN JSON RESPONSE
+    // ==========================================
+    
+    // Return a standardized JSON response with:
+    //   - success flag for easy frontend checking
+    //   - data containing the current page's products (with encrypted IDs)
+    //   - pagination metadata for frontend pagination controls
+    return response()->json([
+        'success' => true,
+        'data' => $products->items(),  // Returns only the current page's items
+        'pagination' => [
+            'current_page' => $products->currentPage(),    // Current page number (e.g., 3)
+            'last_page' => $products->lastPage(),          // Total number of pages (e.g., 10)
+            'per_page' => $products->perPage(),            // Items per page (e.g., 50)
+            'total' => $products->total(),                 // Total items across all pages (e.g., 500)
+            'next_page_url' => $products->nextPageUrl(),   // URL for next page (null if on last page)
+            'prev_page_url' => $products->previousPageUrl(), // URL for previous page (null if on first page)
+        ]
+    ]);
+}
+
+
+
+
+
+
     public function locationproducts($id)
     {
        
@@ -282,37 +549,121 @@ class ProductController extends Controller
         }
     }
 
-    public function index()
-    {
-        $user = Auth::user();
+   
 
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthenticated'
-            ], 401);
-        }
 
-        if (empty($user->active_business_key)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No active business selected'
-            ], 400);
-        }
+    // public function index(Request $request)
+    // {
+    //     $user = Auth::user();
 
-        $products = Product_list::where('business_key', $user->active_business_key)
-            ->get()
-            ->map(function ($product) {
-                $product->encrypted_id = Crypt::encryptString($product->id);
-                return $product;
-            });
+    //     if (!$user) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Unauthenticated'
+    //         ], 401);
+    //     }
 
-        return response()->json([
-            'success' => true,
-            'data' => $products,
-            'count' => $products->count()
-        ]);
-    }
+    //     if (empty($user->active_business_key)) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'No active business selected'
+    //         ], 400);
+    //     }
+
+    //     $perPage = $request->get('per_page', 50);
+    //     $perPage = min($perPage, 100);
+        
+    //     // Build query with filters
+    //     $query = Product_list::where('business_key', $user->active_business_key);
+        
+    //     // Search filter - CASE INSENSITIVE using LOWER() or ILIKE
+    //     if ($request->has('search') && !empty($request->search)) {
+    //         $search = $request->search;
+    //         $query->where(function($q) use ($search) {
+    //             // Alternative for PostgreSQL (uncomment if using PostgreSQL):
+    //             $q->where('name', 'ILIKE', "%{$search}%")
+    //               ->orWhere('sku', 'ILIKE', "%{$search}%")
+    //               ->orWhere('description', 'ILIKE', "%{$search}%");
+    //         });
+    //     }
+        
+    //     // Status filter
+    //     if ($request->has('status') && $request->status !== 'all') {
+    //         if ($request->status === 'active') {
+    //             $query->where('is_active', true);
+    //         } elseif ($request->status === 'inactive') {
+    //             $query->where('is_active', false);
+    //         }
+    //     }
+        
+    //     // Stock filter
+    //     if ($request->has('stock') && $request->stock !== 'all') {
+    //         if ($request->stock === 'in_stock') {
+    //             $query->where('is_out_of_stock', false)
+    //                   ->where('stock_quantity', '>', 0);
+    //         } elseif ($request->stock === 'low_stock') {
+    //             $query->where('is_out_of_stock', false)
+    //                   ->where('stock_quantity', '>', 0)
+    //                   ->whereRaw('stock_quantity <= COALESCE(low_stock_threshold, 5)');
+    //         } elseif ($request->stock === 'out_of_stock') {
+    //             $query->where(function($q) {
+    //                 $q->where('is_out_of_stock', true)
+    //                   ->orWhere('stock_quantity', '<=', 0);
+    //             });
+    //         }
+    //     }
+        
+    //     // Category filter
+    //     if ($request->has('category') && $request->category !== 'all' && is_numeric($request->category)) {
+    //         $query->where('category_id', $request->category);
+    //     }
+        
+    //     // Price range filter
+    //     if ($request->has('price_min') && is_numeric($request->price_min)) {
+    //         $query->where('price', '>=', $request->price_min);
+    //     }
+    //     if ($request->has('price_max') && is_numeric($request->price_max)) {
+    //         $query->where('price', '<=', $request->price_max);
+    //     }
+        
+    //     // Sorting
+    //     $sortBy = $request->get('sort_by', 'name');
+    //     $sortOrder = $request->get('sort_order', 'asc');
+        
+    //     $allowedSortFields = ['name', 'price', 'stock_quantity', 'created_at'];
+    //     if (in_array($sortBy, $allowedSortFields)) {
+    //         $query->orderBy($sortBy, $sortOrder === 'desc' ? 'desc' : 'asc');
+    //     }
+        
+    //     // Include category relationship
+    //     $query->with(['category:id,name']);
+        
+    //     $products = $query->paginate($perPage);
+        
+    //     // Transform the paginated results
+    //     $products->getCollection()->transform(function ($product) {
+    //         $product->encrypted_id = Crypt::encryptString($product->id);
+    //         return $product;
+    //     });
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'data' => $products->items(),
+    //         'pagination' => [
+    //             'current_page' => $products->currentPage(),
+    //             'last_page' => $products->lastPage(),
+    //             'per_page' => $products->perPage(),
+    //             'total' => $products->total(),
+    //             'next_page_url' => $products->nextPageUrl(),
+    //             'prev_page_url' => $products->previousPageUrl(),
+    //         ]
+    //     ]);
+    // }
+
+
+
+
+
 
 
     /**
@@ -329,7 +680,7 @@ class ProductController extends Controller
             ], 401);
         }
 
-        // ✅ Manual validation for API-friendly errors
+        //Manual validation for API-friendly errors
         $validator = Validator::make(
             $request->all(),
             [

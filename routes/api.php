@@ -50,8 +50,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return response()->json($users);
     });
 
-
-
     Route::get('/user', function () {
         return auth()->user()->load('user_roles')->load('businesses_one');
     });
@@ -108,6 +106,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     //routes product-list managements:
     Route::get('/products', [ProductController::class, 'index']);
+
+
+
+
+    // Route::get('/products', [ProductController::class, 'index']);
     Route::post('/addproducts', [ProductController::class, 'store']);
     // Route::get('/products/{id}', [ProductController::class, 'show']);
     Route::put('/products/{id}', [ProductController::class, 'update']);
