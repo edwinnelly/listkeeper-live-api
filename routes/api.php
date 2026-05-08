@@ -109,7 +109,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 
 
-
     // Route::get('/products', [ProductController::class, 'index']);
     Route::post('/addproducts', [ProductController::class, 'store']);
 
@@ -128,7 +127,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/products_locaction_view/{id}', [ProductController::class, 'show']);
     Route::get('/product_history/{id}', [ProductController::class, 'product_history']);
     Route::put('/product_location_update/{id}', [ProductController::class, 'update_product']);
-
 
 
     //manage purchase order items
