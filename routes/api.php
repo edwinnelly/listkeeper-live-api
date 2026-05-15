@@ -125,28 +125,30 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //location products
     Route::get('/product-locations/{id}', [ProductController::class, 'locationproducts']);
     Route::get('/products_locaction_view/{id}', [ProductController::class, 'show']);
-    Route::get('/product_history/{id}', [ProductController::class, 'product_history']);
+    
+    Route::get('/product_history/{id}/{locid}', [ProductController::class, 'product_history']);
+
     Route::put('/product_location_update/{id}', [ProductController::class, 'update_product']);
 
 
     //manage purchase order items
     Route::post('/purchase_order_items', [PurchaseController::class, 'store']);
-     Route::get('/product_purchase', [PurchaseController::class, 'purchase_order']);
-     Route::get('/purchase-list/{id}', [PurchaseController::class, 'purchaseOrderWithItems']);
-     Route::put('/product_purchase_updated/{id}', [PurchaseController::class, 'update']);
-       // Approve purchase order
+    Route::get('/product_purchase', [PurchaseController::class, 'purchase_order']);
+    Route::get('/purchase-list/{id}', [PurchaseController::class, 'purchaseOrderWithItems']);
+    Route::put('/product_purchase_updated/{id}', [PurchaseController::class, 'update']);
+    // Approve purchase order
     Route::put('/product_purchase_status/{id}', [PurchaseController::class, 'approve']);
 
-      // Receive items (partial or full)
+    // Receive items (partial or full)
     Route::put('/purchase-receive/{id}', [PurchaseController::class, 'receiveItems']);
-    
+
     // Quick receive - mark all as received
     Route::post('/purchase-quick-receive/{id}', [PurchaseController::class, 'quickReceive']);
-    
+
     // Get receiving summary
     Route::get('/purchase-receiving-summary/{id}', [PurchaseController::class, 'receivingSummary']);
     Route::delete('/product_purchase_delete/{id}', [PurchaseController::class, 'destroy']);
 
-    
+
     // Route::post('/purchase_order_items', [Purchase_order_items::class, 'store']);
 });

@@ -21,9 +21,6 @@ use Illuminate\Support\Facades\DB;
 class ProductController extends Controller
 {
 
-
-
-
     /**
      * Display a paginated, filtered, and searchable list of products.
      * 
@@ -762,6 +759,7 @@ class ProductController extends Controller
             $paginator->getCollection()->transform(function ($item) use ($location) {
                 $item->encrypted_id = Crypt::encrypt($item->id);
                 $item->encrypted_pid = Crypt::encrypt($item->product_id);
+                $item->encrypted_location_id = Crypt::encrypt($item->location_id);
                 $item->location_name = $location->location_name;
 
                 if ($item->product) {
@@ -929,13 +927,13 @@ class ProductController extends Controller
                         'location_id' => $destinationLocationId,
                         'from_branch_id' => 1,
                         'to_branch_id' => 1,
-                        'type' => $quantity > 0 ? 'addition' : 'linked',
+                        'type' => $quantity > 0 ? 'Newly Added' : 'linked',
                         'quantity' => $quantity,
                         'cost' => $product->cost_price,
                         'price' => $product->price,
                         'source_id' => $ownerId,
                         'source_type' => 'admin', // Full namespace as string
-                        'note' => $notes ?? "Newly Added From Head Office",
+                        'note' => $notes ?? "Newly Added From Product Catalog / Head Office",
                         'transaction_date' => now(),
                     ]);
                 }
@@ -1159,89 +1157,39 @@ class ProductController extends Controller
     //     ]);
     // }
 
-    public function product_history($id)
-    {
-        $user = Auth::user();
-
-        try {
-            // Decrypt ID
-            $decryptedId = Crypt::decrypt($id);
-
-            // Fetch history records
-            $products = ItemHistory::with([
-                'product:id,name,slug,description,sku,dimensions,image',
-                'location_info:id,location_name'
-            ])
-                ->where('business_key', $user->active_business_key)
-                ->where('product_id', $decryptedId)
-                ->get();
-
-            // Encrypt IDs
-            $products->transform(function ($item) {
-                $item->encrypted_id = Crypt::encrypt($item->id);
-                return $item;
-            });
-
-            // Get first record safely
-            $firstItem = $products->first();
-
-            return response()->json([
-                'success' => true,
-                'count' => $products->count(),
-                'data' => $products,
-                'product_name' => $firstItem?->product?->name,
-                'location_name' => $firstItem?->location_info?->location_name,
-            ]);
-        } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
-
-            Log::error('Failed to decrypt product ID', [
-                'encrypted_id' => $id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid encrypted ID',
-            ], 400);
-        } catch (\Exception $e) {
-
-
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Something went wrong',
-            ], 500);
-        }
-    }
-
-
     // public function product_history($id)
     // {
     //     $user = Auth::user();
+
     //     try {
     //         // Decrypt ID
     //         $decryptedId = Crypt::decrypt($id);
-    //         // Fetch all history records
-    //         $products = ItemHistory::with([
-    //             'product:id,name,slug,description,sku,dimensions,image'  
-    //         ])
-    //         ->where('business_key', $user->active_business_key)
-    //         ->where('product_id', $decryptedId)
-    //         ->get();
 
-    //         // Add encrypted IDs
+    //         // Fetch history records
+    //         $products = ItemHistory::with([
+    //             'product:id,name,slug,description,sku,dimensions,image',
+    //             'location_info:id,location_name'
+    //         ])
+    //             ->where('business_key', $user->active_business_key)
+    //             ->where('product_id', $decryptedId)
+    //             ->get();
+
+    //         // Encrypt IDs
     //         $products->transform(function ($item) {
     //             $item->encrypted_id = Crypt::encrypt($item->id);
     //             return $item;
     //         });
 
+    //         // Get first record safely
+    //         $firstItem = $products->first();
+
     //         return response()->json([
     //             'success' => true,
     //             'count' => $products->count(),
     //             'data' => $products,
-    //             'product_name' => $products->first()->name ?? null,
+    //             'product_name' => $firstItem?->product?->name,
+    //             'location_name' => $firstItem?->location_info?->location_name,
     //         ]);
-
     //     } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
 
     //         Log::error('Failed to decrypt product ID', [
@@ -1253,14 +1201,9 @@ class ProductController extends Controller
     //             'success' => false,
     //             'message' => 'Invalid encrypted ID',
     //         ], 400);
-
     //     } catch (\Exception $e) {
 
-    //         Log::error('Unexpected error in product_history()', [
-    //             'encrypted_id' => $id,
-    //             'user_id' => $user->id,
-    //             'error' => $e->getMessage(),
-    //         ]);
+
 
     //         return response()->json([
     //             'success' => false,
@@ -1268,6 +1211,293 @@ class ProductController extends Controller
     //         ], 500);
     //     }
     // }
+
+
+
+    // public function product_history($id)
+    // {
+    //     $user = Auth::user();
+
+    //     try {
+    //         $decryptedId = Crypt::decrypt($id);
+
+    //         // Query parameters for filtering and pagination
+    //         $perPage = request()->input('per_page', 10);
+    //         $search = request()->input('search', '');
+    //         $startDate = request()->input('start_date');
+    //         $endDate = request()->input('end_date');
+
+    //         // Build query
+    //         $query = ItemHistory::with([
+    //             'product:id,name,slug,description,sku,dimensions,image',
+    //             'location_info:id,location_name'
+    //         ])
+    //             ->where('business_key', $user->active_business_key)
+    //             ->where('product_id', $decryptedId);
+
+    //         // Apply search filter across multiple fields
+    //         if (!empty($search)) {
+    //             $keyword = '%' . $search . '%';
+    //             $query->where(function ($q) use ($keyword) {
+    //                 $q->whereHas('product', function ($sq) use ($keyword) {
+    //                     $sq->where('name', 'like', $keyword)
+    //                         ->orWhere('sku', 'like', $keyword)
+    //                         ->orWhere('description', 'like', $keyword);
+    //                 })
+    //                     ->orWhere('type', 'like', $keyword)
+    //                     ->orWhere('note', 'like', $keyword);
+    //             });
+    //         }
+
+    //         // Apply date range filter (assume transaction_date column)
+    //         if ($startDate) {
+    //             $query->whereDate('transaction_date', '>=', $startDate);
+    //         }
+    //         if ($endDate) {
+    //             $query->whereDate('transaction_date', '<=', $endDate);
+    //         }
+
+    //         // Paginate (ordered by latest transaction)
+    //         $products = $query->orderBy('transaction_date', 'desc')
+    //             ->paginate($perPage);
+
+    //         // Encrypt IDs for each item in the collection
+    //         $products->getCollection()->transform(function ($item) {
+    //             $item->encrypted_id = Crypt::encrypt($item->id);
+    //             return $item;
+    //         });
+
+    //         // Fetch location name from the first item (if any)
+    //         $firstItem = $products->first();
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'data' => $products->items(),
+    //             'current_page' => $products->currentPage(),
+    //             'last_page' => $products->lastPage(),
+    //             'per_page' => $products->perPage(),
+    //             'total' => $products->total(),
+    //             'product_name' => $firstItem?->product?->name,
+    //             'location_name' => $firstItem?->location_info?->location_name,
+    //         ]);
+    //     } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+    //         Log::error('Failed to decrypt product ID', [
+    //             'encrypted_id' => $id,
+    //             'error' => $e->getMessage(),
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Invalid encrypted ID',
+    //         ], 400);
+    //     } catch (\Exception $e) {
+    //         Log::error('Product history error: ' . $e->getMessage());
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Something went wrong',
+    //         ], 500);
+    //     }
+    // }
+
+
+
+
+
+    // public function product_history($id)
+    // {
+    //     $user = Auth::user();
+
+    //     try {
+    //         $decryptedId = Crypt::decrypt($id);
+
+    //         // Query parameters for filtering and pagination
+    //         $perPage = request()->input('per_page', 10);
+    //         $search = request()->input('search', '');
+    //         $startDate = request()->input('start_date');
+    //         $endDate = request()->input('end_date');
+
+    //         // Build base query
+    //         $query = ItemHistory::with([
+    //             'product:id,name,slug,description,sku,dimensions,image',
+    //             'location_info:id,location_name'
+    //         ])
+    //             ->where('business_key', $user->active_business_key)
+    //             ->where('product_id', $decryptedId);
+
+    //         // Apply search filter across multiple fields
+    //         if (!empty($search)) {
+    //             $keyword = '%' . $search . '%';
+    //             $query->where(function ($q) use ($keyword) {
+    //                 $q->whereHas('product', function ($sq) use ($keyword) {
+    //                     $sq->where('name', 'like', $keyword)
+    //                         ->orWhere('sku', 'like', $keyword)
+    //                         ->orWhere('description', 'like', $keyword);
+    //                 })
+    //                 ->orWhere('type', 'like', $keyword)
+    //                 ->orWhere('note', 'like', $keyword);
+    //             });
+    //         }
+
+    //         // Apply date range filter
+    //         if ($startDate) {
+    //             $query->whereDate('transaction_date', '>=', $startDate);
+    //         }
+    //         if ($endDate) {
+    //             $query->whereDate('transaction_date', '<=', $endDate);
+    //         }
+
+    //         // --- Summary aggregation ---
+    //         // Clone the query (doesn't modify the original builder state)
+    //         $summaryQuery = clone $query;
+
+    //         $summary = [
+    //             'addition_count'     => (clone $summaryQuery)->where('type', 'addition')->count(),
+    //             'subtraction_count'  => (clone $summaryQuery)->where('type', 'subtraction')->count(),
+    //             'unique_products'    => (clone $summaryQuery)->distinct('product_id')->count('product_id'),
+    //             'total_value'        => (clone $summaryQuery)->sum(\DB::raw('quantity * price')),
+    //         ];
+
+    //         // Paginate (ordered by latest transaction)
+    //         $products = $query->orderBy('transaction_date', 'desc')
+    //             ->paginate($perPage);
+
+    //         // Encrypt IDs for each item in the collection
+    //         $products->getCollection()->transform(function ($item) {
+    //             $item->encrypted_id = Crypt::encrypt($item->id);
+    //             return $item;
+    //         });
+
+    //         // Fetch location name from the first item (if any)
+    //         $firstItem = $products->first();
+
+    //         return response()->json([
+    //             'success'          => true,
+    //             'data'             => $products->items(),
+    //             'current_page'     => $products->currentPage(),
+    //             'last_page'        => $products->lastPage(),
+    //             'per_page'         => $products->perPage(),
+    //             'total'            => $products->total(),
+    //             'product_name'     => $firstItem?->product?->name,
+    //             'location_name'    => $firstItem?->location_info?->location_name,
+    //             'summary'          => $summary,
+    //         ]);
+    //     } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+    //         Log::error('Failed to decrypt product ID', [
+    //             'encrypted_id' => $id,
+    //             'error'        => $e->getMessage(),
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Invalid encrypted ID',
+    //         ], 400);
+    //     } catch (\Exception $e) {
+    //         Log::error('Product history error: ' . $e->getMessage());
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Something went wrong',
+    //         ], 500);
+    //     }
+    // }
+
+
+
+
+    public function product_history($id, $locid)
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated'
+            ], 401);
+        }
+
+        if (empty($user->active_business_key)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No active business selected'
+            ], 400);
+        }
+
+        if (!$user->hasPermission('product_read')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to view this product.'
+            ], 403);
+        }
+
+        try {
+            $decryptedId = Crypt::decrypt($id);
+            $decryptedloc = Crypt::decrypt($locid);
+
+            // Query parameters for filtering and pagination
+            $perPage = request()->input('per_page', 10);
+            $startDate = request()->input('start_date');
+            $endDate = request()->input('end_date');
+
+            // Build query
+            $query = ItemHistory::with([
+                'product:id,name,slug,description,sku,dimensions,image',
+                'location_info:id,location_name'
+            ])
+                ->where('business_key', $user->active_business_key)
+                ->where('product_id', $decryptedId)->where('location_id',$decryptedloc);
+
+            // Apply date range filter
+            if ($startDate) {
+                $query->whereDate('transaction_date', '>=', $startDate);
+            }
+            if ($endDate) {
+                $query->whereDate('transaction_date', '<=', $endDate);
+            }
+
+            // Paginate (ordered by latest transaction)
+            $products = $query->orderBy('transaction_date', 'desc')
+                ->paginate($perPage);
+
+            // Encrypt IDs for each item
+            $products->getCollection()->transform(function ($item) {
+                $item->encrypted_id = Crypt::encrypt($item->id);
+                return $item;
+            });
+
+            // Fetch location name from the first item (if any)
+            $firstItem = $products->first();
+
+            return response()->json([
+                'success'       => true,
+                'data'          => $products->items(),
+                'current_page'  => $products->currentPage(),
+                'last_page'     => $products->lastPage(),
+                'per_page'      => $products->perPage(),
+                'total'         => $products->total(),
+                'product_name'  => $firstItem?->product?->name,
+                'location_name' => $firstItem?->location_info?->location_name,
+            ]);
+        } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+            Log::error('Failed to decrypt product ID', [
+                'encrypted_id' => $id,
+                'error'        => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid encrypted ID',
+            ], 400);
+        } catch (\Exception $e) {
+            Log::error('Product history error: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong',
+            ], 500);
+        }
+    }
+
 
 
 
