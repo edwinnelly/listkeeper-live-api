@@ -1369,6 +1369,128 @@ class ProductController extends Controller
 
 
 
+
+    public function transfer_stocks(Request $request)
+    {
+        // 1. Validate raw input
+        $validator = Validator::make($request->all(), [
+            'sourceLocation'       => 'required|string',
+            'destinationLocation'  => 'required|string',
+            'transferDate'         => 'required|date',
+            'expectedDelivery'     => 'nullable|date|after_or_equal:transferDate',
+            'items'                => 'required|array|min:1',
+            'items.*.product_id'   => 'required|integer|exists:product_location,product_id',
+            'items.*.stock_quantity' => 'required|integer|min:1',
+            'items.*.unit_cost'    => 'required|numeric|min:0',
+            'notes'                => 'nullable|string|max:5000',
+            'reference_number'     => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // 2. Decrypt location IDs (Laravel's built-in encryption)
+        try {
+            $sourceLocationId = Crypt::decryptString($request->sourceLocation);
+            $destinationLocationId = Crypt::decryptString($request->destinationLocation);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Invalid location identifiers.'], 400);
+        }
+
+        // 3. Verify locations exist and are different
+        $sourceLocation = Location::find($sourceLocationId);
+        $destinationLocation = Location::find($destinationLocationId);
+
+        if (! $sourceLocation || ! $destinationLocation) {
+            return response()->json(['message' => 'One or both locations not found.'], 404);
+        }
+
+        if ($sourceLocationId === $destinationLocationId) {
+            return response()->json(['message' => 'Source and destination locations must be different.'], 422);
+        }
+
+        // 4. Check stock availability & prepare items
+        $itemsData = [];
+        foreach ($request->items as $item) {
+            $productLocation = ProductLocation::where('location_id', $sourceLocationId)
+                ->where('product_id', $item['product_id'])
+                ->first();
+
+            if (! $productLocation) {
+                return response()->json([
+                    'message' => "Product ID {$item['product_id']} is not available at the source location."
+                ], 422);
+            }
+
+            if ($productLocation->stock_quantity < $item['stock_quantity']) {
+                return response()->json([
+                    'message' => "Insufficient stock for product ID {$item['product_id']}. " .
+                        "Available: {$productLocation->stock_quantity}, requested: {$item['stock_quantity']}"
+                ], 422);
+            }
+
+            $itemsData[] = [
+                'product_id'      => $item['product_id'],
+                'stock_quantity'  => $item['stock_quantity'],
+                'unit_cost'       => $item['unit_cost'],
+                'total'           => $item['stock_quantity'] * $item['unit_cost'],
+            ];
+        }
+
+        // 5. Create the transfer inside a database transaction
+        try {
+            DB::beginTransaction();
+
+            $transfer = StockTransfer::create([
+                'from_location_id'        => $sourceLocationId,
+                'to_location_id'          => $destinationLocationId,
+                'transfer_date'           => $request->transferDate,
+                'expected_delivery_date'  => $request->expectedDelivery,
+                'notes'                   => $request->notes,
+                'reference_number'        => $request->reference_number,
+                'status'                  => 'pending', // or 'draft'
+                'created_by'              => auth()->id(),
+            ]);
+
+            // Attach items
+            foreach ($itemsData as $item) {
+                $transfer->items()->create($item);
+            }
+
+            DB::commit();
+
+            // Load items relationship for response
+            $transfer->load('items');
+
+            return response()->json([
+                'message' => 'Stock transfer created successfully.',
+                'data'    => $transfer,
+            ], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Stock transfer creation failed: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+                'payload' => $request->all(),
+            ]);
+
+            return response()->json([
+                'message' => 'An error occurred while creating the transfer. Please try again.',
+            ], 500);
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
     public function product_history($id, $locid)
     {
         $user = Auth::user();
