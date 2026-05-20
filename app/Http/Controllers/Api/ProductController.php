@@ -280,352 +280,6 @@ class ProductController extends Controller
 
 
 
-
-    // public function locationproducts(Request $request, $id)
-    // {
-    //     $user = Auth::user();
-    //     if (!$user) {
-    //         return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
-    //     }
-
-    //     if (empty($user->active_business_key)) {
-    //         return response()->json(['success' => false, 'message' => 'No active business selected'], 400);
-    //     }
-
-    //     if (!$user->hasPermission('locations_read')) {
-    //         return response()->json(['success' => false, 'message' => 'Feature Unavailable.'], 403);
-    //     }
-
-    //     $request->validate([
-    //         'price_min' => 'nullable|numeric|min:0',
-    //         'price_max' => 'nullable|numeric|min:0',
-    //         'per_page'  => 'nullable|integer|min:1|max:100',
-    //     ]);
-
-    //     try {
-    //         $locationId = Crypt::decrypt($id);
-    //     } catch (\Exception $e) {
-    //         return response()->json(['success' => false, 'message' => 'Invalid location id'], 400);
-    //     }
-
-    //     $location = Business_locations::where('id', $locationId)
-    //         ->where('business_key', $user->active_business_key)
-    //         ->first();
-
-    //     if (!$location) {
-    //         return response()->json(['success' => false, 'message' => 'Location not found'], 404);
-    //     }
-
-    //     $perPage = (int) $request->input('per_page', 15);
-    //     $perPage = min(max($perPage, 1), 100);
-
-    //     try {
-    //         $query = LocationProductList::with([
-    //             'product:id,name,slug,description,sku,dimensions,discount_percentage,discount_start_date,discount_end_date,manufactured_at,expires_at,weight,length,width,height,is_active,is_featured,is_on_sale,is_out_of_stock,image,additional_info,barcode',
-    //             'category:id,name'
-    //         ])
-    //             ->where('business_key', $user->active_business_key)
-    //             ->where('location_id', $locationId);
-
-    //         // ---- Search (case‑insensitive) ----
-    //         if ($search = $request->input('search')) {
-    //             $query->whereHas('product', function ($q) use ($search) {
-    //                 $q->where('name', 'ilike', "%{$search}%")
-    //                     ->orWhere('sku', 'ilike', "%{$search}%")
-    //                     ->orWhere('description', 'ilike', "%{$search}%");
-    //             });
-    //         }
-
-    //         // ---- Status filter (uses product's is_active) ----
-    //         if (($status = $request->input('status')) && in_array($status, ['active', 'inactive'])) {
-    //             $query->whereHas('product', function ($q) use ($status) {
-    //                 $q->where('is_active', $status === 'active');
-    //             });
-    //         }
-
-    //         // ---- Category filter ----
-    //         if ($categoryId = $request->input('category')) {
-    //             $query->where('category_id', $categoryId);
-    //         }
-
-    //         // ---- Stock level filter (combines location & product) ----
-    //         $stock = $request->input('stock');
-    //         if ($stock === 'in_stock') {
-    //             $query->where('stock_quantity', '>', 0)
-    //                 ->whereHas('product', function ($q) {
-    //                     $q->where('is_out_of_stock', false);
-    //                 });
-    //         } elseif ($stock === 'low_stock') {
-    //             $query->where('stock_quantity', '>', 0)
-    //                 ->whereColumn('stock_quantity', '<=', 'low_stock_threshold')
-    //                 ->whereHas('product', function ($q) {
-    //                     $q->where('is_out_of_stock', false);
-    //                 });
-    //         } elseif ($stock === 'out_of_stock') {
-    //             $query->where(function ($q) {
-    //                 $q->where('stock_quantity', '<=', 0)
-    //                     ->orWhereHas('product', function ($q2) {
-    //                         $q2->where('is_out_of_stock', true);
-    //                     });
-    //             });
-    //         }
-
-    //         // ---- Price range ----
-    //         if ($priceMin = $request->input('price_min')) {
-    //             $query->where('price', '>=', (float) $priceMin);
-    //         }
-    //         if ($priceMax = $request->input('price_max')) {
-    //             $query->where('price', '<=', (float) $priceMax);
-    //         }
-
-    //         // ---- Sorting ----
-    //         $sortBy = $request->input('sort_by', 'created');
-    //         $sortOrder = strtolower($request->input('sort_order', 'desc'));
-    //         $sortOrder = in_array($sortOrder, ['asc', 'desc']) ? $sortOrder : 'desc';
-
-    //         switch ($sortBy) {
-    //             case 'name':
-    //                 $query->orderByRaw(
-    //                     '(SELECT name FROM product_lists WHERE product_lists.id = location_product_lists.product_id LIMIT 1) ' . $sortOrder
-    //                 );
-    //                 break;
-    //             case 'price':
-    //                 $query->orderBy('price', $sortOrder);
-    //                 break;
-    //             case 'stock':
-    //                 $query->orderBy('stock_quantity', $sortOrder);
-    //                 break;
-    //             case 'created':
-    //                 $query->orderBy('created_at', $sortOrder);
-    //                 break;
-    //             default:
-    //                 $query->orderBy('created_at', 'desc');
-    //         }
-
-    //         $paginator = $query->paginate($perPage);
-
-    //         $paginator->getCollection()->transform(function ($item) use ($location) {
-    //             $item->encrypted_id = Crypt::encrypt($item->id);
-    //             $item->encrypted_pid = Crypt::encrypt($item->product_id);
-    //             $item->location_name = $location->location_name;
-
-    //             // Copy product‑level fields that the frontend expects directly
-    //             if ($item->product) {
-    //                 $item->is_active       = $item->product->is_active;
-    //                 $item->is_out_of_stock = $item->product->is_out_of_stock;
-    //                 $item->is_featured     = $item->product->is_featured;
-    //                 $item->is_on_sale      = $item->product->is_on_sale;
-    //             } else {
-    //                 $item->is_active       = false;
-    //                 $item->is_out_of_stock = false;
-    //                 $item->is_featured     = false;
-    //                 $item->is_on_sale      = false;
-    //             }
-
-    //             return $item;
-    //         });
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'data' => $paginator->items(),
-    //             'location_name' => $location->location_name,
-    //             'pagination' => [
-    //                 'current_page' => $paginator->currentPage(),
-    //                 'last_page' => $paginator->lastPage(),
-    //                 'per_page' => $paginator->perPage(),
-    //                 'total' => $paginator->total(),
-    //             ]
-    //         ]);
-    //     } catch (\Exception $e) {
-    //         Log::error('LocationProducts Error', [
-    //             'message' => $e->getMessage(),
-    //             'trace' => $e->getTraceAsString(),
-    //             'params' => $request->all(),
-    //         ]);
-
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Server error: ' . $e->getMessage()
-    //         ], 500);
-    //     }
-    // }
-
-
-
-    // public function locationproducts(Request $request, $id)
-    // {
-    //     $user = Auth::user();
-    //     if (!$user) {
-    //         return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
-    //     }
-
-    //     if (empty($user->active_business_key)) {
-    //         return response()->json(['success' => false, 'message' => 'No active business selected'], 400);
-    //     }
-
-    //     if (!$user->hasPermission('locations_read')) {
-    //         return response()->json(['success' => false, 'message' => 'Feature Unavailable.'], 403);
-    //     }
-
-    //     $request->validate([
-    //         'price_min' => 'nullable|numeric|min:0',
-    //         'price_max' => 'nullable|numeric|min:0',
-    //         'per_page'  => 'nullable|integer|min:1|max:100',
-    //         'category'  => 'nullable|integer|exists:product_categories,id',
-    //     ]);
-
-    //     try {
-    //         $locationId = Crypt::decrypt($id);
-    //     } catch (\Exception $e) {
-    //         return response()->json(['success' => false, 'message' => 'Invalid location id'], 400);
-    //     }
-
-    //     $location = Business_locations::where('id', $locationId)
-    //         ->where('business_key', $user->active_business_key)
-    //         ->first();
-
-    //     if (!$location) {
-    //         return response()->json(['success' => false, 'message' => 'Location not found'], 404);
-    //     }
-
-    //     $perPage = (int) $request->input('per_page', 15);
-    //     $perPage = min(max($perPage, 1), 100);
-
-    //     try {
-    //         $query = LocationProductList::with([
-    //             'product:id,name,slug,description,sku,dimensions,discount_percentage,discount_start_date,discount_end_date,manufactured_at,expires_at,weight,length,width,height,is_active,is_featured,is_on_sale,is_out_of_stock,image,additional_info,barcode',
-    //             'category:id,name'
-    //         ])
-    //             ->where('business_key', $user->active_business_key)
-    //             ->where('location_id', $locationId);
-
-    //         // ---- Search ----
-    //         if ($search = $request->input('search')) {
-    //             $query->whereHas('product', function ($q) use ($search) {
-    //                 $q->where('name', 'ilike', "%{$search}%")
-    //                   ->orWhere('sku', 'ilike', "%{$search}%")
-    //                   ->orWhere('description', 'ilike', "%{$search}%");
-    //             });
-    //         }
-
-    //         // ---- Status filter ----
-    //         if (($status = $request->input('status')) && in_array($status, ['active', 'inactive'])) {
-    //             $query->whereHas('product', function ($q) use ($status) {
-    //                 $q->where('is_active', $status === 'active');
-    //             });
-    //         }
-
-    //         // ---- Category filter (via product) ----
-    //         if ($categoryId = $request->input('category')) {
-    //             Log::info('Category filter applied (via product)', ['category_id' => $categoryId]);
-    //             $query->whereHas('product', function ($q) use ($categoryId) {
-    //                 $q->where('category_id', $categoryId);
-    //             });
-    //         }
-
-    //         // ---- Stock level filter ----
-    //         $stock = $request->input('stock');
-    //         if ($stock === 'in_stock') {
-    //             $query->where('stock_quantity', '>', 0)
-    //                   ->whereHas('product', function ($q) {
-    //                       $q->where('is_out_of_stock', false);
-    //                   });
-    //         } elseif ($stock === 'low_stock') {
-    //             $query->where('stock_quantity', '>', 0)
-    //                   ->whereColumn('stock_quantity', '<=', 'low_stock_threshold')
-    //                   ->whereHas('product', function ($q) {
-    //                       $q->where('is_out_of_stock', false);
-    //                   });
-    //         } elseif ($stock === 'out_of_stock') {
-    //             $query->where(function ($q) {
-    //                 $q->where('stock_quantity', '<=', 0)
-    //                   ->orWhereHas('product', function ($q2) {
-    //                       $q2->where('is_out_of_stock', true);
-    //                   });
-    //             });
-    //         }
-
-    //         // ---- Price range ----
-    //         if ($priceMin = $request->input('price_min')) {
-    //             $query->where('price', '>=', (float) $priceMin);
-    //         }
-    //         if ($priceMax = $request->input('price_max')) {
-    //             $query->where('price', '<=', (float) $priceMax);
-    //         }
-
-    //         // ---- Sorting ----
-    //         $sortBy = $request->input('sort_by', 'created');
-    //         $sortOrder = strtolower($request->input('sort_order', 'desc'));
-    //         $sortOrder = in_array($sortOrder, ['asc', 'desc']) ? $sortOrder : 'desc';
-
-    //         switch ($sortBy) {
-    //             case 'name':
-    //                 $query->orderByRaw(
-    //                     '(SELECT name FROM product_lists WHERE product_lists.id = location_product_lists.product_id LIMIT 1) ' . $sortOrder
-    //                 );
-    //                 break;
-    //             case 'price':
-    //                 $query->orderBy('price', $sortOrder);
-    //                 break;
-    //             case 'stock':
-    //                 $query->orderBy('stock_quantity', $sortOrder);
-    //                 break;
-    //             case 'created':
-    //                 $query->orderBy('created_at', $sortOrder);
-    //                 break;
-    //             default:
-    //                 $query->orderBy('created_at', 'desc');
-    //         }
-
-    //         $paginator = $query->paginate($perPage);
-
-    //         $paginator->getCollection()->transform(function ($item) use ($location) {
-    //             $item->encrypted_id = Crypt::encrypt($item->id);
-    //             $item->encrypted_pid = Crypt::encrypt($item->product_id);
-    //             $item->location_name = $location->location_name;
-
-    //             if ($item->product) {
-    //                 $item->is_active       = $item->product->is_active;
-    //                 $item->is_out_of_stock = $item->product->is_out_of_stock;
-    //                 $item->is_featured     = $item->product->is_featured;
-    //                 $item->is_on_sale      = $item->product->is_on_sale;
-    //             } else {
-    //                 $item->is_active       = false;
-    //                 $item->is_out_of_stock = false;
-    //                 $item->is_featured     = false;
-    //                 $item->is_on_sale      = false;
-    //             }
-
-    //             return $item;
-    //         });
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'data' => $paginator->items(),
-    //             'location_name' => $location->location_name,
-    //             'pagination' => [
-    //                 'current_page' => $paginator->currentPage(),
-    //                 'last_page' => $paginator->lastPage(),
-    //                 'per_page' => $paginator->perPage(),
-    //                 'total' => $paginator->total(),
-    //             ]
-    //         ]);
-    //     } catch (\Exception $e) {
-    //         Log::error('LocationProducts Error', [
-    //             'message' => $e->getMessage(),
-    //             'trace' => $e->getTraceAsString(),
-    //             'params' => $request->all(),
-    //         ]);
-
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Server error: ' . $e->getMessage()
-    //         ], 500);
-    //     }
-    // }
-
-
-
     public function locationproducts(Request $request, $id)
     {
         $user = Auth::user();
@@ -1405,6 +1059,316 @@ class ProductController extends Controller
 
 
 
+    // public function product_location_single($id, $locid)
+    // {
+
+    //     $user = Auth::user();
+
+    //     if (!$user) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Unauthenticated'
+    //         ], 401);
+    //     }
+
+    //     if (empty($user->active_business_key)) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'No active business selected'
+    //         ], 400);
+    //     }
+
+    //     if (!$user->hasPermission('product_read')) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'You do not have permission to view this product.'
+    //         ], 403);
+    //     }
+
+    //     try {
+
+    //         $decryptedId = Crypt::decrypt($id);
+    //         $decryptedLoc = Crypt::decrypt($locid);
+
+    //         // Log decrypted IDs
+    //         Log::info('IDs decrypted successfully', [
+
+    //             'decrypted_product_id' => $decryptedId,
+
+    //             'decrypted_location_id' => $decryptedLoc
+    //         ]);
+
+    //         // Fetch single product location with relationships
+    //         $productLocation = LocationProductList::with([
+    //             'product:id,name,slug,description,sku,dimensions,image,barcode,is_active',
+    //             'category:id,name',
+    //             'location_info:id,location_name,address,city,state,country,postal_code,head_office',
+    //         ])
+    //             ->where('business_key', $user->active_business_key)
+    //             ->where('product_id', $decryptedId)
+    //             ->where('location_id', $decryptedLoc)
+    //             ->first();
+
+
+
+    //         // Check if product exists
+    //         if (!$productLocation) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'Product not found at this location'
+    //             ], 404);
+    //         }
+
+    //         // Encrypt the ID for frontend use
+    //         $productLocation->encrypted_id = Crypt::encrypt($productLocation->id);
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'data'    => $productLocation,
+    //             'message' => 'Product location retrieved successfully'
+    //         ]);
+    //     } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+    //         // Log::error('Failed to decrypt product ID or location ID', [
+    //         //     'encrypted_product_id' => $id,
+    //         //     'encrypted_product_id_length' => strlen($id),
+    //         //     'encrypted_location_id' => $locid,
+    //         //     'encrypted_location_id_length' => strlen($locid),
+    //         //     'error_message' => $e->getMessage(),
+    //         //     'error_trace' => $e->getTraceAsString()
+    //         // ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Invalid encrypted ID'
+    //         ], 400);
+    //     } catch (\Illuminate\Database\QueryException $e) {
+    //         // Log::error('Database error in product_location_single', [
+    //         //     'encrypted_product_id' => $id,
+    //         //     'encrypted_location_id' => $locid,
+    //         //     'decrypted_product_id' => $decryptedId ?? null,
+    //         //     'decrypted_location_id' => $decryptedLoc ?? null,
+    //         //     'error_message' => $e->getMessage(),
+    //         //     'sql' => $e->getSql(),
+    //         //     'bindings' => $e->getBindings()
+    //         // ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Database error while fetching product details'
+    //         ], 500);
+    //     } catch (\Exception $e) {
+    //         // Log::error('Product location single fetch error', [
+    //         //     'encrypted_product_id' => $id,
+    //         //     'encrypted_location_id' => $locid,
+    //         //     'decrypted_product_id' => $decryptedId ?? 'not_decrypted',
+    //         //     'decrypted_location_id' => $decryptedLoc ?? 'not_decrypted',
+    //         //     'error_message' => $e->getMessage(),
+    //         //     'error_class' => get_class($e),
+    //         //     'error_file' => $e->getFile(),
+    //         //     'error_line' => $e->getLine(),
+    //         //     'trace' => $e->getTraceAsString()
+    //         // ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Something went wrong while fetching product details'
+    //         ], 500);
+    //     }
+    // }
+
+    public function product_location_single($id, $locid)
+    {
+        $user = Auth::user();
+
+        Log::info('Product location single request started', [
+            'encrypted_product_id' => $id,
+            'encrypted_product_id_length' => strlen($id),
+            'encrypted_location_id' => $locid,
+            'encrypted_location_id_length' => strlen($locid),
+            'user_id' => Auth::id()
+        ]);
+
+        if (!$user) {
+            Log::warning('Unauthenticated access attempt to product_location_single');
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated'
+            ], 401);
+        }
+
+        if (empty($user->active_business_key)) {
+            Log::warning('No active business selected', [
+                'user_id' => $user->id
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'No active business selected'
+            ], 400);
+        }
+
+        if (!$user->hasPermission('product_read')) {
+            Log::warning('Permission denied for product_read', [
+                'user_id' => $user->id
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to view this product.'
+            ], 403);
+        }
+
+        try {
+            Log::info('Attempting to decrypt IDs', [
+                'encrypted_product_id' => $id,
+                'encrypted_location_id' => $locid
+            ]);
+
+            $decryptedId = Crypt::decrypt($id);
+            $decryptedLoc = Crypt::decrypt($locid);
+
+            Log::info('IDs decrypted successfully', [
+                'decrypted_product_id' => $decryptedId,
+                'decrypted_location_id' => $decryptedLoc,
+                'decrypted_product_id_type' => gettype($decryptedId),
+                'decrypted_location_id_type' => gettype($decryptedLoc)
+            ]);
+
+            // Check if the LocationProductList model/table exists
+            Log::info('Checking LocationProductList model', [
+                'model_class' => LocationProductList::class,
+                'table_name' => (new LocationProductList())->getTable()
+            ]);
+
+            // Build query step by step for better debugging
+            $query = LocationProductList::query();
+
+            Log::info('Base query built');
+
+            // Add relationships
+            $query->with([
+                'product:id,name,slug,description,sku,dimensions,image,barcode,is_active',
+                'category:id,name',
+                'location:id,location_name,address,city,state,country,postal_code,head_office',
+            ]);
+
+            Log::info('Relationships added to query');
+
+            // Add where conditions
+            $query->where('business_key', $user->active_business_key);
+
+            Log::info('Business key filter added', [
+                'business_key' => $user->active_business_key
+            ]);
+
+            $query->where('product_id', $decryptedId);
+
+            Log::info('Product ID filter added', [
+                'product_id' => $decryptedId
+            ]);
+
+            $query->where('location_id', $decryptedLoc);
+
+            Log::info('Location ID filter added', [
+                'location_id' => $decryptedLoc
+            ]);
+
+            // Log the SQL query for debugging
+            Log::info('SQL Query', [
+                'sql' => $query->toSql(),
+                'bindings' => $query->getBindings()
+            ]);
+
+            // Execute the query
+            $productLocation = $query->first();
+
+            Log::info('Query executed', [
+                'found' => $productLocation ? 'yes' : 'no',
+                'product_location_id' => $productLocation?->id
+            ]);
+
+            // Check if product exists
+            if (!$productLocation) {
+                // Let's check if there are ANY products at this location
+                $anyProducts = LocationProductList::where('location_id', $decryptedLoc)
+                    ->where('business_key', $user->active_business_key)
+                    ->count();
+
+                Log::warning('Product not found at specified location', [
+                    'decrypted_product_id' => $decryptedId,
+                    'decrypted_location_id' => $decryptedLoc,
+                    'business_key' => $user->active_business_key,
+                    'total_products_at_location' => $anyProducts
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Product not found at this location'
+                ], 404);
+            }
+
+            // Encrypt the ID for frontend use
+            $productLocation->encrypted_id = Crypt::encrypt($productLocation->id);
+
+            Log::info('Product location found and response prepared', [
+                'product_location_id' => $productLocation->id,
+                'product_name' => $productLocation->product->name ?? 'N/A',
+                'stock_quantity' => $productLocation->stock_quantity
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $productLocation,
+                'message' => 'Product location retrieved successfully'
+            ]);
+        } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+            Log::error('Failed to decrypt IDs', [
+                'encrypted_product_id' => $id,
+                'encrypted_location_id' => $locid,
+                'error_message' => $e->getMessage(),
+                'error_trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid encrypted ID'
+            ], 400);
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::error('Database error in product_location_single', [
+                'encrypted_product_id' => $id,
+                'encrypted_location_id' => $locid,
+                'decrypted_product_id' => $decryptedId ?? null,
+                'decrypted_location_id' => $decryptedLoc ?? null,
+                'error_message' => $e->getMessage(),
+                'sql' => $e->getSql(),
+                'bindings' => $e->getBindings(),
+                'error_code' => $e->getCode()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Database error while fetching product details: ' . $e->getMessage()
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('General error in product_location_single', [
+                'encrypted_product_id' => $id,
+                'encrypted_location_id' => $locid,
+                'decrypted_product_id' => $decryptedId ?? 'not_decrypted',
+                'decrypted_location_id' => $decryptedLoc ?? 'not_decrypted',
+                'error_message' => $e->getMessage(),
+                'error_class' => get_class($e),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong while fetching product details: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+
     public function product_history($id, $locid)
     {
         $user = Auth::user();
@@ -1445,7 +1409,7 @@ class ProductController extends Controller
                 'location_info:id,location_name'
             ])
                 ->where('business_key', $user->active_business_key)
-                ->where('product_id', $decryptedId)->where('location_id',$decryptedloc);
+                ->where('product_id', $decryptedId)->where('location_id', $decryptedloc);
 
             // Apply date range filter
             if ($startDate) {
@@ -1497,6 +1461,8 @@ class ProductController extends Controller
             ], 500);
         }
     }
+
+
 
 
 
@@ -1691,10 +1657,7 @@ class ProductController extends Controller
 
             $product->update($validated);
 
-            Log::info('Product updated successfully', [
-                'product_id' => $product->id,
-                'updated_fields' => $validated
-            ]);
+
 
             return response()->json([
                 'success' => true,
