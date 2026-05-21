@@ -12,11 +12,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('product_sub_categories', function (Blueprint $table) {
-            $table->id();
+            $table->ulid('id')->primary();
 
             // Link to business (optional, if categories are business-specific)
             // Foreign key to business_lists
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
@@ -27,7 +27,7 @@ return new class extends Migration
 
 
             // Link to the main product category
-            $table->unsignedBigInteger('category_id');
+            $table->ulid('category_id');
             $table->foreign('category_id')->references('id')->on('product_categories')->onDelete('cascade');
 
             // Subcategory details

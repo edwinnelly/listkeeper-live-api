@@ -12,16 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('business_locations', function (Blueprint $table) {
-            $table->id();
+            $table->ulid('id')->primary();
 
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
             $table->string('location_id')->nullable(); 
-            $table->foreignId('manager_id')->constrained('users'); // Remove unique() unless only one location per manager is enforced
+            $table->ulid('manager_id')->constrained('users'); // Remove unique() unless only one location per manager is enforced
 
             $table->string('location_status')->default('on');
             $table->string('location_name')->nullable();

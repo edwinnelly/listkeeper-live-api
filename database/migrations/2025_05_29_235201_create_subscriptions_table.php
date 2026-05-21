@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('subscriptions', function (Blueprint $table) {
-            $table->id();
+          $table->ulid('id')->primary();
 
-            $table->unsignedBigInteger('owner_id'); // user subscribed
+            $table->ulid('owner_id'); // user subscribed
             $table->string('plan_name')->nullable();       // e.g., Basic, Pro, Enterprise
             $table->string('plan_code')->nullable(); // optional code from external payment provider
             $table->decimal('amount', 10, 2);      // subscription price

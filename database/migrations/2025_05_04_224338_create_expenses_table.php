@@ -12,25 +12,25 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('expenses', function (Blueprint $table) {
-            $table->id();
+           $table->ulid('id')->primary();
 
             // Link to business and optionally user
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
-            $table->unsignedBigInteger('user_id')->nullable();
+            $table->ulid('user_id')->nullable();
             $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
 
-            $table->unsignedBigInteger('expense_category_id')->nullable();
+            $table->ulid('expense_category_id')->nullable();
             $table->foreign('expense_category_id')->references('id')->on('expense_categories')->onDelete('set null');
 
-            $table->unsignedBigInteger('account_id')->nullable();
+            $table->ulid('account_id')->nullable();
             $table->foreign('account_id')->references('id')->on('accounts')->onDelete('set null');
 
             // Expense details

@@ -13,25 +13,25 @@ return new class extends Migration
     {
         Schema::create('item_histories', function (Blueprint $table) {
 
-            $table->id();
+           $table->ulid('id')->primary();
 
             // Foreign Keys
-            $table->unsignedBigInteger('product_id');
+            $table->ulid('product_id');
             $table->foreign('product_id')->references('id')->on('product_lists')->onDelete('cascade');
             // Business and Location (if multi-location system)
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
-            $table->unsignedBigInteger('from_branch_id')->nullable();
+            $table->ulid('from_branch_id')->nullable();
             $table->foreign('from_branch_id')->references('id')->on('business_locations')->onDelete('cascade');
 
-            $table->unsignedBigInteger('to_branch_id')->nullable();
+            $table->ulid('to_branch_id')->nullable();
             $table->foreign('to_branch_id')->references('id')->on('business_locations')->onDelete('cascade');
             // Transaction Info
             $table->string('type'); // purchase, sale, return, adjustment, transfer, etc.

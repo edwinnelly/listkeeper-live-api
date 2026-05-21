@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('business_lists', function (Blueprint $table) {
-            $table->id();
+           $table->ulid('id')->primary();
 
             // the owner (linked to users table)
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             // $table->unsignedBigInteger('business_key')->unique();
             $table->string('business_key')->unique();
 

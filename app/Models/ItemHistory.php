@@ -3,9 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 class ItemHistory extends Model
 {
+    use HasUlids;
    protected $table='item_histories';
 
     protected $fillable = [

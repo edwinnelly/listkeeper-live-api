@@ -12,27 +12,27 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('location_product_lists', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('owner_id');
+          $table->ulid('id')->primary();
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
-            $table->unsignedBigInteger('product_id')->nullable();
+            $table->ulid('product_id')->nullable();
             $table->foreign('product_id')->references('id')->on('product_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('category_id')->nullable();
+            $table->ulid('category_id')->nullable();
             $table->foreign('category_id')->references('id')->on('product_categories')->onDelete('cascade');
 
           
             // $table->unsignedBigInteger('unit_id')->nullable();
             // $table->foreign('unit_id')->references('id')->on('product_units')->onDelete('cascade');
 
-            $table->unsignedBigInteger('supplier_id')->nullable();
+            $table->ulid('supplier_id')->nullable();
             $table->foreign('supplier_id')->references('id')->on('vendors')->onDelete('cascade');
 
             // Pricing and stock

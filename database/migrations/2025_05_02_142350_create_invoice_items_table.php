@@ -12,24 +12,24 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('invoice_items', function (Blueprint $table) {
-            $table->id();
+            $table->ulid('id')->primary();
             $table->timestamps();
 
             // Business and Location (if multi-location system)
             // Foreign key to business_lists
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
-            $table->unsignedBigInteger('invoice_id');
+            $table->ulid('invoice_id');
             $table->foreign('invoice_id')->references('id')->on('invoices')->onDelete('cascade');
 
-            $table->unsignedBigInteger('product_id')->nullable();
+            $table->ulid('product_id')->nullable();
             $table->foreign('product_id')->references('id')->on('product_lists')->onDelete('set null');
 
             $table->string('description'); // for custom notes or service description

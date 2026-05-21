@@ -13,29 +13,26 @@ return new class extends Migration
     {
         Schema::create('finance_journal_entries', function (Blueprint $table) {
 
-            $table->id();
-
-            // $table->foreignId('journal_id')->constrained()->onDelete('cascade');
-            // $table->foreignId('account_id')->constrained()->onDelete('cascade');
+           $table->ulid('id')->primary();
 
             $table->decimal('debit', 15, 2)->default(0);
             $table->decimal('credit', 15, 2)->default(0);
 
             $table->string('description')->nullable();
-            $table->unsignedBigInteger('contact_id')->nullable(); // optional link to customer/vendor
+            $table->ulid('contact_id')->nullable(); // optional link to customer/vendor
             $table->string('contact_type')->nullable(); // polymorphic
 
             $table->timestamps();
 
 
             // Business and Location (if multi-location system)
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
         });
     }

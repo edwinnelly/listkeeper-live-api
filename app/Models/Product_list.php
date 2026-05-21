@@ -3,10 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 class Product_list extends Model
 {
-    
+    use HasUlids;
     public function products()
     {
         return $this->hasMany(Product_list::class);

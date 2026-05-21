@@ -12,21 +12,21 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('taxables', function (Blueprint $table) {
-            $table->id();
+           $table->ulid('id')->primary();
 
             // Business and Location (if multi-location system)
             // Foreign key to business_lists
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
 
-            $table->unsignedBigInteger('tax_id');
+            $table->ulid('tax_id');
             $table->foreign('tax_id')->references('id')->on('taxes')->onDelete('cascade');
 
             // Polymorphic: can be applied to product, service, invoice_item, etc.

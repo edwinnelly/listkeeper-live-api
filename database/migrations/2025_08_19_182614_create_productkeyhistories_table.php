@@ -12,8 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('productkeyhistories', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('product_key_id');
+           $table->ulid('id')->primary();
+            $table->ulid('product_key_id')->nullable();
 
             $table->string('serial_number')->nullable();
             $table->enum('status', [
@@ -23,14 +23,21 @@ return new class extends Migration
                 'returned',
                 'defective'
             ])->default('available');
-            $table->unsignedBigInteger('assigned_to')->nullable();
+            $table->ulid('assigned_to')->nullable();
             $table->date('purchase_date')->nullable();
             $table->date('sale_date')->nullable();
 
-            $table->unsignedBigInteger('product_id')->nullable();
-            $table->unsignedBigInteger('owner_id')->nullable();
-            $table->string('business_key')->nullable();
-            $table->unsignedBigInteger('location_id')->nullable();
+            $table->ulid('product_id')->nullable();
+
+             $table->ulid('owner_id');
+            $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
+
+            $table->string('business_key');
+            $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
+
+            $table->ulid('location_id');
+            $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
+
 
             // Audit fields
             $table->enum('action_type', ['created', 'updated', 'deleted', 'status_changed'])->nullable();

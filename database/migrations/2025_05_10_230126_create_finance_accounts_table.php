@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('finance_accounts', function (Blueprint $table) {
-            $table->id();
+           $table->ulid('id')->primary();
 
             $table->string('name');
             $table->string('code')->nullable(); // optional account code like "1000" or "EXP001"
@@ -48,13 +48,13 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
 
 
-             $table->unsignedBigInteger('owner_id');
+             $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
             $table->timestamps();

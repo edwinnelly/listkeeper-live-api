@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('product_keys', function (Blueprint $table) {
-            $table->id();
+           $table->ulid('id')->primary();
             $table->string('serial_number')->nullable();
             $table->string('username')->nullable();
             $table->enum('status', [
@@ -22,21 +22,21 @@ return new class extends Migration
                 'returned',
                 'defective'
             ])->default('available');
-            $table->unsignedBigInteger('assigned_to')->nullable(); // could be customer_id or order_id
+            $table->ulid('assigned_to')->nullable(); // could be customer_id or order_id
             $table->date('purchase_date')->nullable();
             $table->date('sale_date')->nullable();
 
             // Foreign key to business_lists
-            $table->unsignedBigInteger('product_id');
+            $table->ulid('product_id');
             $table->foreign('product_id')->references('id')->on('product_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
             $table->timestamps();

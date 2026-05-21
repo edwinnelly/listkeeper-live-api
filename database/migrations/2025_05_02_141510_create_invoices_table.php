@@ -13,26 +13,26 @@ return new class extends Migration
     {
         Schema::create('invoices', function (Blueprint $table) {
 
-            $table->id();
+           $table->ulid('id')->primary();
 
             // Foreign key to business_lists
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
 
             // // staff id
-            $table->unsignedBigInteger('staff_id')->nullable();
+            $table->ulid('staff_id')->nullable();
             $table->foreign('staff_id')->references('id')->on('business_employees')->onDelete('set null');
 
             // // Customer
 
-            $table->unsignedBigInteger('customer_id')->nullable();
+            $table->ulid('customer_id')->nullable();
             $table->foreign('customer_id')->references('id')->on('customers')->onDelete('set null');
 
 

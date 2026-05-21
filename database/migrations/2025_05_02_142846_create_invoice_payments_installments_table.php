@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('invoice_payments_installments', function (Blueprint $table) {
-            $table->id();
+            $table->ulid('id')->primary();
 
-            $table->unsignedBigInteger('invoice_id');
+            $table->ulid('invoice_id');
             $table->foreign('invoice_id')->references('id')->on('invoices')->onDelete('cascade');
 
             $table->decimal('amount', 15, 2);
@@ -26,17 +26,17 @@ return new class extends Migration
 
             // Business and Location (if multi-location system)
             // Foreign key to business_lists
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
             // staff id
-            $table->unsignedBigInteger('staff_id')->nullable();
+            $table->ulid('staff_id')->nullable();
             $table->foreign('staff_id')->references('id')->on('business_employees')->onDelete('set null');
 
             $table->timestamps();

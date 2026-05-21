@@ -12,24 +12,24 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('purchase_order_items', function (Blueprint $table) {
-            $table->id();
+            $table->ulid('id')->primary();
 
             // Business and Location (if multi-location system)
             // Foreign key to business_lists
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
 
-            $table->unsignedBigInteger('purchase_order_id');
+            $table->ulid('purchase_order_id');
             $table->foreign('purchase_order_id')->references('id')->on('purchase_orders')->onDelete('cascade');
 
-            $table->unsignedBigInteger('product_id');
+            $table->ulid('product_id');
             $table->foreign('product_id')->references('id')->on('product_lists')->onDelete('cascade');
 
             $table->unsignedBigInteger('quantity')->default(0);

@@ -4,9 +4,10 @@ namespace App\Models;
 
 use App\Http\Controllers\Api\Product_category;
 use Illuminate\Database\Eloquent\Model;
-
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 class LocationProductList extends Model
 {
+    use HasUlids;
     protected $table = 'location_product_lists';
 
     protected $fillable = [

@@ -3,10 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
+  
 class Business_list extends Model
 {
-
+  use HasUlids; 
  // Fields that are mass assignable
     protected $fillable = [
         'owner_id',

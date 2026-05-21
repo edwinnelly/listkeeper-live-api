@@ -13,20 +13,20 @@ return new class extends Migration
     {
         Schema::create('purchase_orders', function (Blueprint $table) {
 
-            $table->id();
+          $table->ulid('id')->primary();
 
 
             // Foreign key to business_lists
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
-            $table->unsignedBigInteger('posted_by')->nullable()->change();
+            $table->ulid('posted_by')->nullable();
 
             $table->foreign('posted_by')
                 ->references('id')
@@ -35,7 +35,7 @@ return new class extends Migration
 
 
             //Supplier
-            $table->unsignedBigInteger('vendors_id');
+            $table->ulid('vendors_id');
             $table->foreign('vendors_id')->references('id')->on('vendors')->onDelete('cascade');
 
             // Basic purchase order info

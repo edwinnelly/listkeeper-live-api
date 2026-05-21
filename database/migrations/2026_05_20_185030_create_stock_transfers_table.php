@@ -12,24 +12,24 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('stock_transfers', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('from_location_id');
-            $table->unsignedBigInteger('to_location_id');
+          $table->ulid('id')->primary();
+            $table->ulid('from_location_id');
+            $table->ulid('to_location_id');
             $table->date('transfer_date');
             $table->date('expected_delivery_date')->nullable();
             $table->text('notes')->nullable();
             $table->string('reference_number')->nullable()->unique();
-            $table->string('status')->default('pending'); // pending, in_transit, complete
-
+            $table->enum('status', ['approved', 'pending', 'suspended'])->default('pending');
             // Item details (since always one product)
-            $table->unsignedBigInteger('product_id');
+            $table->ulid('product_id');
             $table->unsignedInteger('stock_quantity');
+            $table->unsignedInteger('stock_quantity_before');
             $table->decimal('unit_cost', 12, 2)->default(0);
             $table->decimal('total', 12, 2)->default(0);
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->cascadeOnDelete();
-            
+
 
             $table->string('postby')->nullable();
             $table->string('received_by')->nullable();

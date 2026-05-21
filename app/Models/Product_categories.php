@@ -1,27 +1,5 @@
 <?php
 
-// namespace App\Models;
-
-// use Illuminate\Database\Eloquent\Model;
-
-// class Product_categories extends Model
-// {
-//     //
-
-
-//     protected $fillable = [
-//         'name',
-//         'slug',
-//         'description',
-
-//     ];
-
-//    public function products()
-//     {
-//         return $this->hasMany(Product_list::class, 'category_id');
-//     }
-// }
-
 
 namespace App\Models;
 
@@ -30,7 +8,8 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Product_categories extends Model
 {
-    // use HasUuids;
+    use HasUlids;
+   
 
     protected $table = 'product_categories';
 

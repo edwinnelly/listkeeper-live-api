@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('vendor_debts', function (Blueprint $table) {
 
-            $table->id();
+          $table->ulid('id')->primary();
 
             // Foreign key to users
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             // Foreign key to business_lists
@@ -24,11 +24,11 @@ return new class extends Migration
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
             // Foreign key to business_locations
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
             // Foreign key to vendors
-            $table->unsignedBigInteger('vendor_id');
+            $table->ulid('vendor_id');
             $table->foreign('vendor_id')->references('id')->on('vendors')->onDelete('cascade');
 
             // Debt details

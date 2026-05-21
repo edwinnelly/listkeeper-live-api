@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('product_lists', function (Blueprint $table) {
-            $table->id();
+           $table->ulid('id')->primary();
 
             // Foreign key to business_lists
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
@@ -30,15 +30,15 @@ return new class extends Migration
             $table->string('dimensions')->nullable(); // SEO-friendly URL
 
             // Product categorization
-            $table->unsignedBigInteger('category_id');
+            $table->ulid('category_id');
             $table->foreign('category_id')->references('id')->on('product_categories')->onDelete('cascade');
 
             // Sub Product categorization
-            $table->unsignedBigInteger('sub_category_id')->default(0);
+            $table->ulid('sub_category_id')->default(0);
             // $table->foreign('sub_category_id')->references('id')->on('product_sub_categories')->onDelete('cascade');
 
             // Child Product categorization
-            $table->unsignedBigInteger('child_sub_category_id')->default(0);
+            $table->ulid('child_sub_category_id')->default(0);
             // $table->foreign('child_sub_category_id')->references('id')->on('product_sub_child_categories')->onDelete('cascade');
 
 
@@ -67,7 +67,7 @@ return new class extends Migration
             $table->string('height')->nullable(); // In centimeters (optional)
 
             // Product supplier details
-            $table->unsignedBigInteger('supplier_id')->nullable(); // Supplier ID
+            $table->ulid('supplier_id')->nullable(); // Supplier ID
             $table->foreign('supplier_id')->references('id')->on('vendors')->onDelete('set null'); // Foreign key to supplier
 
             // Product status

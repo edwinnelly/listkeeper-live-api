@@ -12,19 +12,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('item_units', function (Blueprint $table) {
-            $table->id();
+            $table->ulid('id')->primary();
 
             // Business and Location (if multi-location system)
-            $table->unsignedBigInteger('owner_id');
+            $table->ulid('owner_id');
             $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('business_key');
             $table->foreign('business_key')->references('business_key')->on('business_lists')->onDelete('cascade');
 
-            $table->unsignedBigInteger('location_id');
+            $table->ulid('location_id');
             $table->foreign('location_id')->references('id')->on('business_locations')->onDelete('cascade');
 
-            $table->unsignedBigInteger('product_id')->nullable();
+            $table->ulid('product_id')->nullable();
             $table->foreign('product_id')->references('id')->on('product_lists')->onDelete('cascade');
             $table->string('serial_number')->nullable()->unique(); // For serialized items
             $table->string('batch_number')->nullable();            // For batch tracking
