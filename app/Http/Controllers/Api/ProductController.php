@@ -1615,14 +1615,14 @@ class ProductController extends Controller
         }
 
         // Decode + decrypt ONLY (this is the only risky part)
-        try {
-            $id = (int) Crypt::decryptString(urldecode($id));
-        } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid product ID',
-            ], 400);
-        }
+        // try {
+        //     $id = (str) $id;
+        // } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Invalid product ID',
+        //     ], 400);
+        // }
 
         // Query without try/catch
         $product = Product_list::with(['category:id,name'])
