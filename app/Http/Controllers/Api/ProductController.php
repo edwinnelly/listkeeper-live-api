@@ -252,7 +252,7 @@ class ProductController extends Controller
             // Add an encrypted version of the product ID
             // This is used by the frontend for secure operations
             // Prevents exposing raw database IDs if needed for security
-            $product->encrypted_id = Crypt::encryptString($product->id);
+            $product->encrypted_id = ($product->id);
             return $product;
         });
 
@@ -675,8 +675,8 @@ class ProductController extends Controller
                 'sku' => 'nullable|string|max:50',
                 'description' => 'nullable|string|max:450',
 
-                'category_id' => 'required|integer|exists:product_categories,id',
-                'supplier_id' => 'required|integer|exists:vendors,id',
+                'category_id' => 'required|string|exists:product_categories,id',
+                'supplier_id' => 'required|string|exists:vendors,id',
 
                 'products_measurements' => 'nullable|string|max:50',
 

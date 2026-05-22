@@ -107,8 +107,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //routes product-list managements:
     Route::get('/products', [ProductController::class, 'index']);
 
-
-
     // Route::get('/products', [ProductController::class, 'index']);
     Route::post('/addproducts', [ProductController::class, 'store']);
 

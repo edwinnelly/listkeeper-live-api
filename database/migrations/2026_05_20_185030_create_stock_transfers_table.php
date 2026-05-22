@@ -37,9 +37,9 @@ return new class extends Migration
             $table->timestamps();
 
             // Foreign keys for locations
-            $table->foreign('from_location_id')->references('id')->on('locations')->cascadeOnUpdate()->restrictOnDelete();
-            $table->foreign('to_location_id')->references('id')->on('locations')->cascadeOnUpdate()->restrictOnDelete();
-            $table->foreign('product_id')->references('id')->on('products')->cascadeOnUpdate()->restrictOnDelete();
+            $table->foreign('from_location_id')->references('id')->on('business_locations')->cascadeOnUpdate()->restrictOnDelete();
+            $table->foreign('to_location_id')->references('id')->on('business_locations')->cascadeOnUpdate()->restrictOnDelete();
+            $table->foreign('product_id')->references('id')->on('product_lists')->cascadeOnUpdate()->restrictOnDelete();
         });
     }
 

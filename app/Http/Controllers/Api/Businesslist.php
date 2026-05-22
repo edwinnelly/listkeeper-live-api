@@ -99,32 +99,43 @@ class Businesslist extends Controller
     }
 
 
-
     public function store(Request $request)
     {
-        // Validate request data
-        $validated = $request->validate([
-            'business_name' => 'required|string|max:255|unique:business_lists,business_name,NULL,id,owner_id,' . Auth::id(),
-            'address' => 'required|string|max:500',
-            'website' => 'nullable|url|max:255',
-            'phone' => 'required|string|max:20',
-            'slug' => 'required|string|max:255',
-            'about_business' => 'nullable|string',
-            'country' => 'required|string|max:100',
-            'state' => 'required|string|max:100',
-            'city' => 'required|string|max:100',
-            'subscription_plan' => 'required|string|max:100',
-            'currency' => 'required|string|max:10',
-            'language' => 'required|string|max:50',
-            'industry_type' => 'required|string|max:150',
-            'logo' => 'nullable|mimetypes:image/avif,image/jpeg,image/png,image/webp|max:2048',
-        ]);
+        try {
+
+            $validated = $request->validate([
+                'business_name' => 'required|string|max:255|unique:business_lists,business_name,NULL,id,owner_id,' . Auth::id(),
+                'address' => 'required|string|max:500',
+                'website' => 'nullable|url|max:255',
+                'phone' => 'required|string|max:20',
+                'slug' => 'required|string|max:255',
+                'about_business' => 'nullable|string',
+                'country' => 'required|string|max:100',
+                'state' => 'required|string|max:100',
+                'city' => 'required|string|max:100',
+                'subscription_plan' => 'required|string|max:100',
+                'currency' => 'required|string|max:10',
+                'language' => 'required|string|max:50',
+                'industry_type' => 'required|string|max:150',
+                'logo' => 'nullable|mimetypes:image/avif,image/jpeg,image/png,image/webp|max:2048',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        }
 
         try {
             $user = Auth::user();
             $userId = $user->id;
 
+            // Check if user is Host
             if ($user->creator !== 'Host') {
+
                 return response()->json([
                     'status' => false,
                     'message' => 'Unauthorized access',
@@ -139,152 +150,384 @@ class Businesslist extends Controller
                     'message' => 'Business limit reached, max allowed is 5'
                 ], 412);
             }
-            // Check if user has a tier account
 
             DB::beginTransaction();
 
-            // Create unique business key
-            $business_key = (string) Str::uuid();
+            try {
+                // Create unique business key
+                $business_key = (string) Str::uuid();
 
-            // Create business
-            $business = new Business_list($validated);
-            $business->owner_id = Auth::id();
-            $business->business_key = $business_key;
+                // Create business
+                $business = new Business_list($validated);
+                $business->owner_id = Auth::id();
+                $business->business_key = $business_key;
 
-            // Handle logo upload
-            if ($request->hasFile('logo')) {
-                $file = $request->file('logo');
-                $filename = time() . '_' . preg_replace('/\s+/', '_', $file->getClientOriginalName());
-                $file->storeAs('business_logo', $filename, 'public');
-                $business->logo = 'business_logo/' . $filename;
+                // Handle logo upload
+                if ($request->hasFile('logo')) {
+
+                    try {
+                        $file = $request->file('logo');
+                        $filename = time() . '_' . preg_replace('/\s+/', '_', $file->getClientOriginalName());
+                        $file->storeAs('business_logo', $filename, 'public');
+                        $business->logo = 'business_logo/' . $filename;
+                    } catch (\Exception $e) {
+
+                        throw $e;
+                    }
+                } else {
+                    Log::info('No logo file provided');
+                }
+
+                $business->save();
+
+                try {
+                    $default_location = new Business_locations();
+                    $default_location->business_key = $business_key;
+                    $default_location->owner_id = Auth::id();
+                    $default_location->location_name = 'Main Branch';
+                    $default_location->head_office = 'yes';
+                    $default_location->manager_id = Auth::id();
+                    $default_location->phone = $validated['phone'];
+                    $default_location->location_id = (string) Str::ulid(); // Add this if needed
+                    $default_location->save();
+                } catch (\Exception $e) {
+
+                    throw $e;
+                }
+
+                // Create subscription
+
+                try {
+                    $subscription = new Subscriptions();
+                    $subscription->owner_id = Auth::id();
+                    $subscription->business_key = $business_key;
+                    $subscription->plan_name = 'Basic';
+                    $subscription->plan_code = 'basic';
+                    $subscription->amount = 0;
+                    $subscription->start_date = now();
+                    $subscription->end_date = now()->addDays(7);
+                    $subscription->save();
+                } catch (\Exception $e) {
+
+                    throw $e;
+                }
+
+                try {
+                    $role = new Roles();
+                    $role->id = (string) Str::ulid(); // Add explicit ID if needed
+                    $role->owner_id = Auth::id();
+                    $role->user_id = Auth::id();
+                    $role->business_key = $business_key;
+                    $role->location_id = $default_location->id; // ✅ IMPORTANT: Add the location ID
+                    $role->permission = 'yes';
+                    $role->users_create = 'yes';
+                    $role->users_read = 'yes';
+                    $role->users_update = 'yes';
+                    $role->users_delete = 'yes';
+                    $role->subscriptions_read = 'yes';
+                    $role->subscriptions_update = 'yes';
+                    $role->locations_create = 'yes';
+                    $role->locations_read = 'yes';
+                    $role->locations_update = 'yes';
+                    $role->locations_delete = 'yes';
+                    $role->locations_analytics = 'yes';
+                    $role->category_create = 'yes';
+                    $role->category_read = 'yes';
+                    $role->category_update = 'yes';
+                    $role->category_delete = 'yes';
+                    $role->product_create = 'yes';
+                    $role->product_read = 'yes';
+                    $role->product_update = 'yes';
+                    $role->product_delete = 'yes';
+                    $role->unit_create = 'yes';
+                    $role->unit_read = 'yes';
+                    $role->unit_update = 'yes';
+                    $role->unit_delete = 'yes';
+                    $role->vendor_create = 'yes';
+                    $role->vendor_read = 'yes';
+                    $role->vendor_update = 'yes';
+                    $role->vendor_delete = 'yes';
+                    $role->purchase_create = 'yes';
+                    $role->purchase_read = 'yes';
+                    $role->purchase_update = 'yes';
+                    $role->purchase_delete = 'yes';
+                    $role->purchase_approve = 'yes';
+                    $role->purchase_received = 'yes';
+                    $role->purchase_cancel = 'yes';
+                    $role->purchase_process_all = 'yes';
+                    $role->customer_create = 'yes';
+                    $role->customer_read = 'yes';
+                    $role->customer_update = 'yes';
+                    $role->customer_delete = 'yes';
+                    $role->credit_note_create = 'yes';
+                    $role->credit_note_read = 'yes';
+                    $role->credit_note_update = 'yes';
+                    $role->credit_note_delete = 'yes';
+                    $role->expense_create = 'yes';
+                    $role->expense_read = 'yes';
+                    $role->expense_update = 'yes';
+                    $role->expense_delete = 'yes';
+                    $role->invoice_create = 'yes';
+                    $role->invoice_read = 'yes';
+                    $role->invoice_update = 'yes';
+                    $role->invoice_delete = 'yes';
+                    $role->pos_create = 'yes';
+                    $role->pos_read = 'yes';
+                    $role->pos_update = 'yes';
+                    $role->pos_delete = 'yes';
+                    $role->can_edit_price = 'yes';
+                    $role->can_adjust_stock = 'yes';
+                    $role->can_transfer_stock = 'yes';
+                    $role->can_view_cost = 'yes';
+                    $role->save();
+                } catch (\Exception $e) {
+
+                    throw $e;
+                }
+
+                // Handle free tier upgrade
+                if ($user->account_tier === 'no') {
+
+                    try {
+                        // Update user account tier
+                        $updated = User::where('id', Auth::id())->update(['account_tier' => 'yes']);
+
+                        // Update subscription
+                        $subscriptionUpdated = Subscriptions::where('owner_id', Auth::id())
+                            ->where('business_key', $business_key)
+                            ->update([
+                                'status' => 'active',
+                                'end_date' => now()->addDays(365),
+                                'users' => 5,
+                                'products' => 100,
+                                'locations' => 5,
+                                'invoice' => 500,
+                                'transaction_id' => rand(123456789, 1234567890)
+                            ]);
+
+                        // Update business status
+                        $businessUpdated = Business_list::where('owner_id', Auth::id())
+                            ->where('business_key', $business_key)
+                            ->update(['status' => 'active', 'subscription_type' => 'Basic']);
+                    } catch (\Exception $e) {
+
+                        throw $e;
+                    }
+                } else {
+                    Log::info('User already has account tier set to yes, skipping upgrade');
+                }
+
+                DB::commit();
+
+                return response()->json([
+                    'status' => true,
+                    'message' => 'Business created successfully',
+                    'data' => $business
+                ], 201);
+            } catch (\Exception $e) {
+                DB::rollBack();
+
+                throw $e; // Re-throw to be caught by outer catch
             }
-
-            $business->save();
-
-            // Create default location
-            $default_location = new Business_locations();
-            $default_location->business_key = $business_key;
-            $default_location->owner_id = Auth::id();
-            $default_location->location_name = 'Main Branch';
-            $default_location->head_office = 'yes';
-            $default_location->manager_id = Auth::id();
-            $default_location->phone = $validated['phone'];
-            $default_location->location_id = Str::uuid()->toString();
-
-            $default_location->save();
-
-            // Create subscription
-            $subscription = new Subscriptions();
-            $subscription->owner_id = Auth::id();
-            $subscription->business_key = $business_key;
-            $subscription->plan_name = 'Basic';
-            $subscription->plan_code = 'basic';
-            $subscription->amount = 0;
-            $subscription->start_date = now();
-            $subscription->end_date = now()->addDays(7);
-            $subscription->save();
-
-            // If role does not exist, create it
-            $role = new Roles();
-            $role->owner_id = Auth::id();
-            $role->user_id = Auth::id();
-            $role->business_key = $business_key;
-
-            // Optional: grant admin full access if this is the business owner
-            $role->permission = 'yes';
-            $role->users_create = 'yes';
-            $role->users_read = 'yes';
-            $role->users_update = 'yes';
-            $role->users_delete = 'yes';
-            $role->subscriptions_read = 'yes';
-            $role->subscriptions_update = 'yes';
-            $role->locations_create = 'yes';
-            $role->locations_read = 'yes';
-            $role->locations_update = 'yes';
-            $role->locations_delete = 'yes';
-            $role->locations_analytics = 'yes';
-            $role->category_create = 'yes';
-            $role->category_read = 'yes';
-            $role->category_update = 'yes';
-            $role->category_delete = 'yes';
-            $role->product_create = 'yes';
-            $role->product_read = 'yes';
-            $role->product_update = 'yes';
-            $role->product_delete = 'yes';
-            $role->unit_create = 'yes';
-            $role->unit_read = 'yes';
-            $role->unit_update = 'yes';
-            $role->unit_delete = 'yes';
-            $role->vendor_create = 'yes';
-            $role->vendor_read = 'yes';
-            $role->vendor_update = 'yes';
-            $role->vendor_delete = 'yes';
-            $role->purchase_create = 'yes';
-            $role->purchase_read = 'yes';
-            $role->purchase_update = 'yes';
-            $role->purchase_delete = 'yes';
-            $role->customer_create = 'yes';
-            $role->customer_read = 'yes';
-            $role->customer_update = 'yes';
-            $role->customer_delete = 'yes';
-            $role->credit_note_create = 'yes';
-            $role->credit_note_read = 'yes';
-            $role->credit_note_update = 'yes';
-            $role->credit_note_delete = 'yes';
-            $role->expense_create = 'yes';
-            $role->expense_read = 'yes';
-            $role->expense_update = 'yes';
-            $role->expense_delete = 'yes';
-            $role->invoice_create = 'yes';
-            $role->invoice_read = 'yes';
-            $role->invoice_update = 'yes';
-            $role->invoice_delete = 'yes';
-            $role->pos_create = 'yes';
-            $role->pos_read = 'yes';
-            $role->pos_update = 'yes';
-            $role->pos_delete = 'yes';
-            $role->save();
-
-            if ($user->account_tier === 'no') {
-                //update the user account with free tier
-                User::where('id', Auth::id())
-                    ->update(['account_tier' => 'yes']);
-
-                Subscriptions::where('owner_id', Auth::id())->where('business_key', $business_key)
-                    ->update(['status' => 'active', 'end_date' => now()->addDays(365), 'users' => 5, 'products' => 100, 'locations' => 5, 'invoice' => 500, 'transaction_id' => rand(123456789, 1234567890)]);
-
-                Business_list::where('owner_id', Auth::id())->where('business_key', $business_key)->update(['status' => 'active', 'subscription_type' => 'Basic']);
-                //add roles and permission
-                // if (!$existingRole) {
-                //     Roles::create([
-                //         'owner_id' => Auth::id(),
-                //         'user_id' => Auth::id(),
-                //         'business_key' => $business_key
-                //     ]);
-                // }
-
-            }
-
-
-            DB::commit();
-
-            return response()->json([
-                'status' => true,
-                'message' => 'Business created successfully',
-                'data' => $business
-
-            ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            // Log::error('Error in Businesslist@store: ' . $e->getMessage());
 
             return response()->json([
                 'status' => false,
                 'message' => 'An error occurred while creating the business',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ], 500);
         }
     }
+
+
+    // public function store(Request $request)
+    // {
+    //     // Validate request data
+    //     $validated = $request->validate([
+    //         'business_name' => 'required|string|max:255|unique:business_lists,business_name,NULL,id,owner_id,' . Auth::id(),
+    //         'address' => 'required|string|max:500',
+    //         'website' => 'nullable|url|max:255',
+    //         'phone' => 'required|string|max:20',
+    //         'slug' => 'required|string|max:255',
+    //         'about_business' => 'nullable|string',
+    //         'country' => 'required|string|max:100',
+    //         'state' => 'required|string|max:100',
+    //         'city' => 'required|string|max:100',
+    //         'subscription_plan' => 'required|string|max:100',
+    //         'currency' => 'required|string|max:10',
+    //         'language' => 'required|string|max:50',
+    //         'industry_type' => 'required|string|max:150',
+    //         'logo' => 'nullable|mimetypes:image/avif,image/jpeg,image/png,image/webp|max:2048',
+    //     ]);
+
+    //     try {
+    //         $user = Auth::user();
+    //         $userId = $user->id;
+
+    //         if ($user->creator !== 'Host') {
+    //             return response()->json([
+    //                 'status' => false,
+    //                 'message' => 'Unauthorized access',
+    //             ], 403);
+    //         }
+
+    //         // Check business limit
+    //         $count_business = Business_list::where('owner_id', Auth::id())->count();
+    //         if ($count_business >= 5) {
+    //             return response()->json([
+    //                 'status' => false,
+    //                 'message' => 'Business limit reached, max allowed is 5'
+    //             ], 412);
+    //         }
+    //         // Check if user has a tier account
+
+    //         DB::beginTransaction();
+
+    //         // Create unique business key
+    //         $business_key = (string) Str::uuid();
+
+    //         // Create business
+    //         $business = new Business_list($validated);
+    //         $business->owner_id = Auth::id();
+    //         $business->business_key = $business_key;
+
+    //         // Handle logo upload
+    //         if ($request->hasFile('logo')) {
+    //             $file = $request->file('logo');
+    //             $filename = time() . '_' . preg_replace('/\s+/', '_', $file->getClientOriginalName());
+    //             $file->storeAs('business_logo', $filename, 'public');
+    //             $business->logo = 'business_logo/' . $filename;
+    //         }
+
+    //         $business->save();
+
+    //         // Create default location
+    //         $default_location = new Business_locations();
+    //         $default_location->business_key = $business_key;
+    //         $default_location->owner_id = Auth::id();
+    //         $default_location->location_name = 'Main Branch';
+    //         $default_location->head_office = 'yes';
+    //         $default_location->manager_id = Auth::id();
+    //         $default_location->phone = $validated['phone'];
+    //         $default_location->location_id = Str::uuid()->toString();
+
+    //         $default_location->save();
+
+    //         // Create subscription
+    //         $subscription = new Subscriptions();
+    //         $subscription->owner_id = Auth::id();
+    //         $subscription->business_key = $business_key;
+    //         $subscription->plan_name = 'Basic';
+    //         $subscription->plan_code = 'basic';
+    //         $subscription->amount = 0;
+    //         $subscription->start_date = now();
+    //         $subscription->end_date = now()->addDays(7);
+    //         $subscription->save();
+
+    //         // If role does not exist, create it
+    //         $role = new Roles();
+    //         $role->owner_id = Auth::id();
+    //         $role->user_id = Auth::id();
+    //         $role->business_key = $business_key;
+
+    //         // Optional: grant admin full access if this is the business owner
+    //         $role->permission = 'yes';
+    //         $role->users_create = 'yes';
+    //         $role->users_read = 'yes';
+    //         $role->users_update = 'yes';
+    //         $role->users_delete = 'yes';
+    //         $role->subscriptions_read = 'yes';
+    //         $role->subscriptions_update = 'yes';
+    //         $role->locations_create = 'yes';
+    //         $role->locations_read = 'yes';
+    //         $role->locations_update = 'yes';
+    //         $role->locations_delete = 'yes';
+    //         $role->locations_analytics = 'yes';
+    //         $role->category_create = 'yes';
+    //         $role->category_read = 'yes';
+    //         $role->category_update = 'yes';
+    //         $role->category_delete = 'yes';
+    //         $role->product_create = 'yes';
+    //         $role->product_read = 'yes';
+    //         $role->product_update = 'yes';
+    //         $role->product_delete = 'yes';
+    //         $role->unit_create = 'yes';
+    //         $role->unit_read = 'yes';
+    //         $role->unit_update = 'yes';
+    //         $role->unit_delete = 'yes';
+    //         $role->vendor_create = 'yes';
+    //         $role->vendor_read = 'yes';
+    //         $role->vendor_update = 'yes';
+    //         $role->vendor_delete = 'yes';
+    //         $role->purchase_create = 'yes';
+    //         $role->purchase_read = 'yes';
+    //         $role->purchase_update = 'yes';
+    //         $role->purchase_delete = 'yes';
+    //         $role->customer_create = 'yes';
+    //         $role->customer_read = 'yes';
+    //         $role->customer_update = 'yes';
+    //         $role->customer_delete = 'yes';
+    //         $role->credit_note_create = 'yes';
+    //         $role->credit_note_read = 'yes';
+    //         $role->credit_note_update = 'yes';
+    //         $role->credit_note_delete = 'yes';
+    //         $role->expense_create = 'yes';
+    //         $role->expense_read = 'yes';
+    //         $role->expense_update = 'yes';
+    //         $role->expense_delete = 'yes';
+    //         $role->invoice_create = 'yes';
+    //         $role->invoice_read = 'yes';
+    //         $role->invoice_update = 'yes';
+    //         $role->invoice_delete = 'yes';
+    //         $role->pos_create = 'yes';
+    //         $role->pos_read = 'yes';
+    //         $role->pos_update = 'yes';
+    //         $role->pos_delete = 'yes';
+    //         $role->save();
+
+    //         if ($user->account_tier === 'no') {
+    //             //update the user account with free tier
+    //             User::where('id', Auth::id())
+    //                 ->update(['account_tier' => 'yes']);
+
+    //             Subscriptions::where('owner_id', Auth::id())->where('business_key', $business_key)
+    //                 ->update(['status' => 'active', 'end_date' => now()->addDays(365), 'users' => 5, 'products' => 100, 'locations' => 5, 'invoice' => 500, 'transaction_id' => rand(123456789, 1234567890)]);
+
+    //             Business_list::where('owner_id', Auth::id())->where('business_key', $business_key)->update(['status' => 'active', 'subscription_type' => 'Basic']);
+    //             //add roles and permission
+    //             // if (!$existingRole) {
+    //             //     Roles::create([
+    //             //         'owner_id' => Auth::id(),
+    //             //         'user_id' => Auth::id(),
+    //             //         'business_key' => $business_key
+    //             //     ]);
+    //             // }
+
+    //         }
+
+
+    //         DB::commit();
+
+    //         return response()->json([
+    //             'status' => true,
+    //             'message' => 'Business created successfully',
+    //             'data' => $business
+
+    //         ], 201);
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+    //         // Log::error('Error in Businesslist@store: ' . $e->getMessage());
+
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'An error occurred while creating the business',
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
 
 
 

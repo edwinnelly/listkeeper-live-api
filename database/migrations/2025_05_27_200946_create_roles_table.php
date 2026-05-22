@@ -15,8 +15,8 @@ return new class extends Migration
             $table->ulid('id')->primary();
 
             // FK to users table - unique role per user
-            $table->ulid('users_id');  // FIXED: removed duplicate $table->
-            $table->foreign('users_id')->references('id')->on('users')->onDelete('cascade');
+            $table->ulid('user_id');  // FIXED: removed duplicate $table->
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
 
             // FK to business_lists using business_key
             $table->string('business_key');

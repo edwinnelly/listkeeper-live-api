@@ -21,6 +21,8 @@ use Illuminate\Http\JsonResponse;
 
 class LocationController extends Controller
 {
+   
+
     public function index()
     {
         $user = auth()->user();
@@ -42,11 +44,7 @@ class LocationController extends Controller
         // Fetch locations
         $locations = Business_locations::with('user', 'business')
             ->where('business_key', $user->active_business_key)
-            ->get()
-            ->map(function ($location) {
-                $location->encrypted_id = Crypt::encrypt($location->id);
-                return $location;
-            });
+            ->get();
 
         // Fetch staffs
         $staffs = User::where('active_business_key', $user->active_business_key)
@@ -57,6 +55,8 @@ class LocationController extends Controller
             'staffs' => $staffs,
         ]);
     }
+
+
 
     public function index_without_main()
     {
