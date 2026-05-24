@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Http\Controllers\Api\Product_category;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
+
 class LocationProductList extends Model
 {
     use HasUlids;
@@ -27,11 +28,11 @@ class LocationProductList extends Model
     ];
 
     protected $casts = [
-        'owner_id' => 'integer',
-        'location_id' => 'integer',
-        'product_id' => 'integer',
-        'category_id' => 'integer',
-        'supplier_id' => 'integer',
+        'owner_id' => 'string',
+        'location_id' => 'string',
+        'product_id' => 'string',
+        'category_id' => 'string',
+        'supplier_id' => 'string',
         'price' => 'float',
         'cost_price' => 'float',
         'sale_price' => 'float',
@@ -42,10 +43,17 @@ class LocationProductList extends Model
     /**
      * Get the product associated with this location product
      */
-    public function product()
+    public function product1()
     {
         return $this->belongsTo(Product_list::class, 'product_id');
     }
+    // In LocationProductList model
+    public function product()
+    {
+        return $this->belongsTo(Product_list::class, 'product_id', 'id');
+    }
+
+    
 
     /**
      * Get the category associated with this location product

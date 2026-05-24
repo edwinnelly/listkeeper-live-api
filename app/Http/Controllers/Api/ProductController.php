@@ -280,196 +280,475 @@ class ProductController extends Controller
 
 
 
+    // public function locationproducts(Request $request, $id)
+    // {
+    //     $user = Auth::user();
+
+    //     Log::info('LocationProducts - Request started', [
+    //         'user_id' => $user->id ?? 'not authenticated',
+    //         'location_id' => $id,
+    //         'params' => $request->all()
+    //     ]);
+
+    //     if (!$user) {
+    //         Log::warning('LocationProducts - Unauthenticated');
+    //         return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+    //     }
+
+    //     if (empty($user->active_business_key)) {
+    //         Log::warning('LocationProducts - No active business', ['user_id' => $user->id]);
+    //         return response()->json(['success' => false, 'message' => 'No active business selected'], 400);
+    //     }
+
+    //     if (!$user->hasPermission('locations_read')) {
+    //         Log::warning('LocationProducts - Permission denied', ['user_id' => $user->id]);
+    //         return response()->json(['success' => false, 'message' => 'Feature Unavailable.'], 403);
+    //     }
+
+    //     $request->validate([
+    //         'price_min' => 'nullable|numeric|min:0',
+    //         'price_max' => 'nullable|numeric|min:0',
+    //         'per_page'  => 'nullable|integer|min:1|max:100',
+    //         'category'  => 'nullable|string|exists:product_categories,id',
+    //     ]);
+
+    //     $locationId = $id;
+
+    //     $location = Business_locations::where('id', $locationId)
+    //         ->where('business_key', $user->active_business_key)
+    //         ->first();
+
+    //     if (!$location) {
+    //         Log::warning('LocationProducts - Location not found', [
+    //             'location_id' => $locationId,
+    //             'business_key' => $user->active_business_key
+    //         ]);
+    //         return response()->json(['success' => false, 'message' => 'Location not found'], 404);
+    //     }
+
+    //     Log::info('LocationProducts - Location found', [
+    //         'location_id' => $location->id,
+    //         'location_name' => $location->location_name
+    //     ]);
+
+    //     $perPage = (int) $request->input('per_page', 15);
+    //     $perPage = min(max($perPage, 1), 100);
+
+    //     try {
+    //         $query = LocationProductList::with([
+    //             'product:id,name,slug,description,sku,dimensions,discount_percentage,discount_start_date,discount_end_date,manufactured_at,expires_at,weight,length,width,height,is_active,is_featured,is_on_sale,is_out_of_stock,image,additional_info,barcode',
+    //             'category:id,name'
+    //         ])
+    //             ->where('business_key', $user->active_business_key)
+    //             ->where('location_id', $locationId);
+
+    //         // Log the base query SQL for debugging
+    //         Log::info('LocationProducts - Base query built', [
+    //             'sql' => $query->toSql(),
+    //             'bindings' => $query->getBindings()
+    //         ]);
+
+    //         // ---- Search ----
+    //         if ($search = $request->input('search')) {
+    //             Log::info('LocationProducts - Search filter applied', ['search' => $search]);
+    //             $query->whereHas('product', function ($q) use ($search) {
+    //                 $q->where('name', 'ilike', "%{$search}%")
+    //                     ->orWhere('sku', 'ilike', "%{$search}%")
+    //                     ->orWhere('description', 'ilike', "%{$search}%");
+    //             });
+    //         }
+
+    //         // ---- Status filter ----
+    //         if (($status = $request->input('status')) && in_array($status, ['active', 'inactive'])) {
+    //             Log::info('LocationProducts - Status filter applied', ['status' => $status]);
+    //             $query->whereHas('product', function ($q) use ($status) {
+    //                 $q->where('is_active', $status === 'active');
+    //             });
+    //         }
+
+    //         // ---- Category filter ----
+    //         if ($categoryId = $request->input('category')) {
+    //             Log::info('LocationProducts - Category filter applied', ['category_id' => $categoryId]);
+    //             $query->whereHas('product', function ($q) use ($categoryId) {
+    //                 $q->where('category_id', $categoryId);
+    //             });
+    //         }
+
+    //         // ---- Stock level filter ----
+    //         $stock = $request->input('stock');
+    //         if ($stock) {
+    //             Log::info('LocationProducts - Stock filter applied', ['stock' => $stock]);
+    //         }
+    //         if ($stock === 'in_stock') {
+    //             $query->where('stock_quantity', '>', 0)
+    //                 ->whereHas('product', function ($q) {
+    //                     $q->where('is_out_of_stock', false);
+    //                 });
+    //         } elseif ($stock === 'low_stock') {
+    //             $query->where('stock_quantity', '>', 0)
+    //                 ->whereColumn('stock_quantity', '<=', 'low_stock_threshold')
+    //                 ->whereHas('product', function ($q) {
+    //                     $q->where('is_out_of_stock', false);
+    //                 });
+    //         } elseif ($stock === 'out_of_stock') {
+    //             $query->where(function ($q) {
+    //                 $q->where('stock_quantity', '<=', 0)
+    //                     ->orWhereHas('product', function ($q2) {
+    //                         $q2->where('is_out_of_stock', true);
+    //                     });
+    //             });
+    //         }
+
+    //         // ---- Price range ----
+    //         if ($priceMin = $request->input('price_min')) {
+    //             Log::info('LocationProducts - Price min filter', ['price_min' => $priceMin]);
+    //             $query->where('price', '>=', (float) $priceMin);
+    //         }
+    //         if ($priceMax = $request->input('price_max')) {
+    //             Log::info('LocationProducts - Price max filter', ['price_max' => $priceMax]);
+    //             $query->where('price', '<=', (float) $priceMax);
+    //         }
+
+    //         // ---- Sorting ----
+    //         $sortBy = $request->input('sort_by', 'created');
+    //         $sortOrder = strtolower($request->input('sort_order', 'desc'));
+    //         $sortOrder = in_array($sortOrder, ['asc', 'desc']) ? $sortOrder : 'desc';
+
+    //         Log::info('LocationProducts - Sorting', ['sort_by' => $sortBy, 'sort_order' => $sortOrder]);
+
+    //         switch ($sortBy) {
+    //             case 'name':
+    //                 $query->orderByRaw(
+    //                     '(SELECT name FROM product_lists WHERE product_lists.id = location_product_lists.product_id LIMIT 1) ' . $sortOrder
+    //                 );
+    //                 break;
+    //             case 'price':
+    //                 $query->orderBy('price', $sortOrder);
+    //                 break;
+    //             case 'stock':
+    //                 $query->orderBy('stock_quantity', $sortOrder);
+    //                 break;
+    //             case 'created':
+    //                 $query->orderBy('created_at', $sortOrder);
+    //                 break;
+    //             default:
+    //                 $query->orderBy('created_at', 'desc');
+    //         }
+
+    //         // Calculate total inventory value
+    //         $totalValue = (clone $query)->sum(DB::raw('price * stock_quantity'));
+
+    //         Log::info('LocationProducts - Total inventory value', ['total_value' => $totalValue]);
+
+    //         // Get count before pagination
+    //         $totalCount = (clone $query)->count();
+    //         Log::info('LocationProducts - Total records before pagination', ['count' => $totalCount]);
+
+    //         $paginator = $query->paginate($perPage);
+
+    //         Log::info('LocationProducts - Pagination results', [
+    //             'current_page' => $paginator->currentPage(),
+    //             'total_items' => $paginator->total(),
+    //             'items_in_page' => $paginator->count(),
+    //             'has_more_pages' => $paginator->hasMorePages()
+    //         ]);
+
+    //         // Log first item for debugging product relationship
+    //         $firstItem = $paginator->items()[0] ?? null;
+    //         if ($firstItem) {
+    //             Log::info('LocationProducts - First item details', [
+    //                 'has_product_relation' => $firstItem->relationLoaded('product'),
+    //                 'product_exists' => $firstItem->product ? 'yes' : 'no',
+    //                 'product_data' => $firstItem->product ? [
+    //                     'id' => $firstItem->product->id,
+    //                     'name' => $firstItem->product->name,
+    //                     'sku' => $firstItem->product->sku,
+    //                 ] : null,
+    //                 'raw_item' => $firstItem->toArray()
+    //             ]);
+    //         }
+
+    //         $paginator->getCollection()->transform(function ($item) use ($location) {
+    //             $item->encrypted_id = $item->id;
+    //             $item->encrypted_pid = $item->product_id;
+    //             $item->encrypted_location_id = $item->location_id;
+    //             $item->location_name = $location->location_name;
+
+    //             if ($item->product) {
+    //                 $item->product_name = $item->product->name; // Explicitly add product_name
+    //                 $item->is_active = $item->product->is_active;
+    //                 $item->is_out_of_stock = $item->product->is_out_of_stock;
+    //                 $item->is_featured = $item->product->is_featured;
+    //                 $item->is_on_sale = $item->product->is_on_sale;
+
+    //                 Log::info('LocationProducts - Item transformed', [
+    //                     'product_id' => $item->product_id,
+    //                     'product_name' => $item->product->name,
+    //                     'has_name' => !empty($item->product->name)
+    //                 ]);
+    //             } else {
+    //                 Log::warning('LocationProducts - Product missing for item', [
+    //                     'location_product_id' => $item->id,
+    //                     'product_id' => $item->product_id,
+    //                     'location_id' => $item->location_id
+    //                 ]);
+
+    //                 $item->product_name = 'Unknown Product';
+    //                 $item->is_active = false;
+    //                 $item->is_out_of_stock = false;
+    //                 $item->is_featured = false;
+    //                 $item->is_on_sale = false;
+    //             }
+
+    //             return $item;
+    //         });
+
+    //         // Log final data sample
+    //         $finalItems = $paginator->items();
+    //         if (!empty($finalItems)) {
+    //             Log::info('LocationProducts - Final response sample', [
+    //                 'first_item_keys' => array_keys((array)$finalItems[0]),
+    //                 'has_product_name' => isset($finalItems[0]->product_name),
+    //                 'sample_product_name' => $finalItems[0]->product_name ?? 'NOT SET'
+    //             ]);
+    //         }
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'data' => $paginator->items(),
+    //             'location_name' => $location->location_name,
+    //             'pagination' => [
+    //                 'current_page' => $paginator->currentPage(),
+    //                 'last_page' => $paginator->lastPage(),
+    //                 'per_page' => $paginator->perPage(),
+    //                 'total' => $paginator->total(),
+    //                 'total_value' => $totalValue ?? 0,
+    //             ]
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         Log::error('LocationProducts Error', [
+    //             'message' => $e->getMessage(),
+    //             'file' => $e->getFile(),
+    //             'line' => $e->getLine(),
+    //             'trace' => $e->getTraceAsString(),
+    //             'params' => $request->all(),
+    //             'location_id' => $id,
+    //             'business_key' => $user->active_business_key ?? 'not set',
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Server error: ' . $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
+
+
+
     public function locationproducts(Request $request, $id)
-    {
-        $user = Auth::user();
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
-        }
+{
+    $user = Auth::user();
 
-        if (empty($user->active_business_key)) {
-            return response()->json(['success' => false, 'message' => 'No active business selected'], 400);
-        }
-
-        if (!$user->hasPermission('locations_read')) {
-            return response()->json(['success' => false, 'message' => 'Feature Unavailable.'], 403);
-        }
-
-        $request->validate([
-            'price_min' => 'nullable|numeric|min:0',
-            'price_max' => 'nullable|numeric|min:0',
-            'per_page'  => 'nullable|integer|min:1|max:100',
-            'category'  => 'nullable|integer|exists:product_categories,id',
-        ]);
-
-        try {
-            $locationId = Crypt::decrypt($id);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Invalid location id'], 400);
-        }
-
-        $location = Business_locations::where('id', $locationId)
-            ->where('business_key', $user->active_business_key)
-            ->first();
-
-        if (!$location) {
-            return response()->json(['success' => false, 'message' => 'Location not found'], 404);
-        }
-
-        $perPage = (int) $request->input('per_page', 15);
-        $perPage = min(max($perPage, 1), 100);
-
-        try {
-            $query = LocationProductList::with([
-                'product:id,name,slug,description,sku,dimensions,discount_percentage,discount_start_date,discount_end_date,manufactured_at,expires_at,weight,length,width,height,is_active,is_featured,is_on_sale,is_out_of_stock,image,additional_info,barcode',
-                'category:id,name'
-            ])
-                ->where('business_key', $user->active_business_key)
-                ->where('location_id', $locationId);
-
-            // ---- Search ----
-            if ($search = $request->input('search')) {
-                $query->whereHas('product', function ($q) use ($search) {
-                    $q->where('name', 'ilike', "%{$search}%")
-                        ->orWhere('sku', 'ilike', "%{$search}%")
-                        ->orWhere('description', 'ilike', "%{$search}%");
-                });
-            }
-
-            // ---- Status filter ----
-            if (($status = $request->input('status')) && in_array($status, ['active', 'inactive'])) {
-                $query->whereHas('product', function ($q) use ($status) {
-                    $q->where('is_active', $status === 'active');
-                });
-            }
-
-            // ---- Category filter (via product) ----
-            if ($categoryId = $request->input('category')) {
-                Log::info('Category filter applied (via product)', ['category_id' => $categoryId]);
-                $query->whereHas('product', function ($q) use ($categoryId) {
-                    $q->where('category_id', $categoryId);
-                });
-            }
-
-            // ---- Stock level filter ----
-            $stock = $request->input('stock');
-            if ($stock === 'in_stock') {
-                $query->where('stock_quantity', '>', 0)
-                    ->whereHas('product', function ($q) {
-                        $q->where('is_out_of_stock', false);
-                    });
-            } elseif ($stock === 'low_stock') {
-                $query->where('stock_quantity', '>', 0)
-                    ->whereColumn('stock_quantity', '<=', 'low_stock_threshold')
-                    ->whereHas('product', function ($q) {
-                        $q->where('is_out_of_stock', false);
-                    });
-            } elseif ($stock === 'out_of_stock') {
-                $query->where(function ($q) {
-                    $q->where('stock_quantity', '<=', 0)
-                        ->orWhereHas('product', function ($q2) {
-                            $q2->where('is_out_of_stock', true);
-                        });
-                });
-            }
-
-            // ---- Price range ----
-            if ($priceMin = $request->input('price_min')) {
-                $query->where('price', '>=', (float) $priceMin);
-            }
-            if ($priceMax = $request->input('price_max')) {
-                $query->where('price', '<=', (float) $priceMax);
-            }
-
-            // ---- Sorting ----
-            $sortBy = $request->input('sort_by', 'created');
-            $sortOrder = strtolower($request->input('sort_order', 'desc'));
-            $sortOrder = in_array($sortOrder, ['asc', 'desc']) ? $sortOrder : 'desc';
-
-            switch ($sortBy) {
-                case 'name':
-                    $query->orderByRaw(
-                        '(SELECT name FROM product_lists WHERE product_lists.id = location_product_lists.product_id LIMIT 1) ' . $sortOrder
-                    );
-                    break;
-                case 'price':
-                    $query->orderBy('price', $sortOrder);
-                    break;
-                case 'stock':
-                    $query->orderBy('stock_quantity', $sortOrder);
-                    break;
-                case 'created':
-                    $query->orderBy('created_at', $sortOrder);
-                    break;
-                default:
-                    $query->orderBy('created_at', 'desc');
-            }
-
-            // ★ Calculate total inventory value across ALL filtered rows (before pagination)
-            $totalValue = (clone $query)->sum(DB::raw('price * stock_quantity'));
-
-            $paginator = $query->paginate($perPage);
-
-            $paginator->getCollection()->transform(function ($item) use ($location) {
-                $item->encrypted_id = Crypt::encrypt($item->id);
-                $item->encrypted_pid = Crypt::encrypt($item->product_id);
-                $item->encrypted_location_id = Crypt::encrypt($item->location_id);
-                $item->location_name = $location->location_name;
-
-                if ($item->product) {
-                    $item->is_active       = $item->product->is_active;
-                    $item->is_out_of_stock = $item->product->is_out_of_stock;
-                    $item->is_featured     = $item->product->is_featured;
-                    $item->is_on_sale      = $item->product->is_on_sale;
-                } else {
-                    $item->is_active       = false;
-                    $item->is_out_of_stock = false;
-                    $item->is_featured     = false;
-                    $item->is_on_sale      = false;
-                }
-
-                return $item;
-            });
-
-            return response()->json([
-                'success' => true,
-                'data' => $paginator->items(),
-                'location_name' => $location->location_name,
-                'pagination' => [
-                    'current_page' => $paginator->currentPage(),
-                    'last_page' => $paginator->lastPage(),
-                    'per_page' => $paginator->perPage(),
-                    'total' => $paginator->total(),
-                    'total_value' => $totalValue ?? 0,   // ★ new field
-                ]
-            ]);
-        } catch (\Exception $e) {
-            Log::error('LocationProducts Error', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'params' => $request->all(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Server error: ' . $e->getMessage()
-            ], 500);
-        }
+    if (!$user) {
+        return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
     }
 
+    if (empty($user->active_business_key)) {
+        return response()->json(['success' => false, 'message' => 'No active business selected'], 400);
+    }
 
+    if (!$user->hasPermission('locations_read')) {
+        return response()->json(['success' => false, 'message' => 'Feature Unavailable.'], 403);
+    }
 
+    $request->validate([
+        'price_min' => 'nullable|numeric|min:0',
+        'price_max' => 'nullable|numeric|min:0',
+        'per_page'  => 'nullable|integer|min:1|max:100',
+        'category'  => 'nullable|string|exists:product_categories,id',
+    ]);
 
+    $locationId = $id;
+
+    $location = Business_locations::where('id', $locationId)
+        ->where('business_key', $user->active_business_key)
+        ->first();
+
+    if (!$location) {
+        return response()->json(['success' => false, 'message' => 'Location not found'], 404);
+    }
+
+    $perPage = (int) $request->input('per_page', 15);
+    $perPage = min(max($perPage, 1), 100);
+
+    try {
+        $query = LocationProductList::with([
+            'product:id,name,slug,description,sku,dimensions,discount_percentage,discount_start_date,discount_end_date,manufactured_at,expires_at,weight,length,width,height,is_active,is_featured,is_on_sale,is_out_of_stock,image,additional_info,barcode',
+            'category:id,name'
+        ])
+            ->where('business_key', $user->active_business_key)
+            ->where('location_id', $locationId);
+
+        // ---- Search ----
+        if ($search = $request->input('search')) {
+            $query->whereHas('product', function ($q) use ($search) {
+                $q->where('name', 'ilike', "%{$search}%")
+                    ->orWhere('sku', 'ilike', "%{$search}%")
+                    ->orWhere('description', 'ilike', "%{$search}%");
+            });
+        }
+
+        // ---- Status filter ----
+        if (($status = $request->input('status')) && in_array($status, ['active', 'inactive'])) {
+            $query->whereHas('product', function ($q) use ($status) {
+                $q->where('is_active', $status === 'active');
+            });
+        }
+
+        // ---- Category filter ----
+        if ($categoryId = $request->input('category')) {
+            $query->whereHas('product', function ($q) use ($categoryId) {
+                $q->where('category_id', $categoryId);
+            });
+        }
+
+        // ---- Stock level filter ----
+        $stock = $request->input('stock');
+        if ($stock === 'in_stock') {
+            $query->where('stock_quantity', '>', 0)
+                ->whereHas('product', function ($q) {
+                    $q->where('is_out_of_stock', false);
+                });
+        } elseif ($stock === 'low_stock') {
+            $query->where('stock_quantity', '>', 0)
+                ->whereColumn('stock_quantity', '<=', 'low_stock_threshold')
+                ->whereHas('product', function ($q) {
+                    $q->where('is_out_of_stock', false);
+                });
+        } elseif ($stock === 'out_of_stock') {
+            $query->where(function ($q) {
+                $q->where('stock_quantity', '<=', 0)
+                    ->orWhereHas('product', function ($q2) {
+                        $q2->where('is_out_of_stock', true);
+                    });
+            });
+        }
+
+        // ---- Price range ----
+        if ($priceMin = $request->input('price_min')) {
+            $query->where('price', '>=', (float) $priceMin);
+        }
+        if ($priceMax = $request->input('price_max')) {
+            $query->where('price', '<=', (float) $priceMax);
+        }
+
+        // ---- Sorting ----
+        $sortBy = $request->input('sort_by', 'created');
+        $sortOrder = strtolower($request->input('sort_order', 'desc'));
+        $sortOrder = in_array($sortOrder, ['asc', 'desc']) ? $sortOrder : 'desc';
+
+        switch ($sortBy) {
+            case 'name':
+                $query->orderByRaw(
+                    '(SELECT name FROM product_lists WHERE product_lists.id = location_product_lists.product_id LIMIT 1) ' . $sortOrder
+                );
+                break;
+            case 'price':
+                $query->orderBy('price', $sortOrder);
+                break;
+            case 'stock':
+                $query->orderBy('stock_quantity', $sortOrder);
+                break;
+            case 'created':
+                $query->orderBy('created_at', $sortOrder);
+                break;
+            default:
+                $query->orderBy('created_at', 'desc');
+        }
+
+        // Calculate total inventory value
+        $totalValue = (clone $query)->sum(DB::raw('price * stock_quantity'));
+
+        $paginator = $query->paginate($perPage);
+
+        $paginator->getCollection()->transform(function ($item) use ($location) {
+            $item->encrypted_id = $item->id;
+            $item->encrypted_pid = $item->product_id;
+            $item->encrypted_location_id = $item->location_id;
+            $item->location_name = $location->location_name;
+
+            if ($item->product) {
+                $item->product_name = $item->product->name;
+                $item->is_active = $item->product->is_active;
+                $item->is_out_of_stock = $item->product->is_out_of_stock;
+                $item->is_featured = $item->product->is_featured;
+                $item->is_on_sale = $item->product->is_on_sale;
+            } else {
+                $item->product_name = 'Unknown Product';
+                $item->is_active = false;
+                $item->is_out_of_stock = false;
+                $item->is_featured = false;
+                $item->is_on_sale = false;
+            }
+
+            return $item;
+        });
+
+        $responseData = [
+            'success' => true,
+            'data' => $paginator->items(),
+            'location_name' => $location->location_name,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'total_value' => $totalValue ?? 0,
+            ]
+        ];
+
+        Log::info('LocationProducts - Response payload', [
+            'user_id' => $user->id,
+            'location_id' => $locationId,
+            'request_params' => $request->except(['password', 'token']),
+            'response' => $responseData
+        ]);
+
+        return response()->json($responseData);
+    } catch (\Exception $e) {
+        Log::error('LocationProducts Error', [
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'params' => $request->all(),
+            'location_id' => $id,
+            'business_key' => $user->active_business_key ?? 'not set',
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Server error: ' . $e->getMessage()
+        ], 500);
+    }
+}
 
     public function distributeProducts(Request $request)
     {
         try {
             $ownerId = Auth::id();
             $businessKey = Auth::user()->active_business_key;
+
+            if (!$businessKey) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Active business key not found for user'
+                ], 403);
+            }
+
             $validated = $request->validate([
                 'destination_location_id' => [
                     'required',
-                    'exists:business_locations,id',
+                    'string',
                     function ($attribute, $value, $fail) use ($businessKey) {
                         $location = Business_locations::where('id', $value)
                             ->where('business_key', $businessKey)
@@ -482,12 +761,11 @@ class ProductController extends Controller
                 'items' => 'required|array|min:1',
                 'items.*.product_id' => [
                     'required',
-                    'exists:product_lists,id',
+                    'string',
                     function ($attribute, $value, $fail) use ($businessKey) {
                         $product = Product_list::where('id', $value)
                             ->where('business_key', $businessKey)
                             ->exists();
-
                         if (!$product) {
                             $fail('The selected product does not belong to your business.');
                         }
@@ -499,14 +777,9 @@ class ProductController extends Controller
 
             DB::beginTransaction();
 
-
-            if (!$businessKey) {
-                throw new \Exception('Active business key not found for user');
-            }
-
             $destinationLocationId = $request->destination_location_id;
             $items = $request->items;
-
+            $notes = $request->notes;
 
             $destinationLocation = Business_locations::where('id', $destinationLocationId)
                 ->where('business_key', $businessKey)
@@ -518,60 +791,59 @@ class ProductController extends Controller
 
             $processedItems = [];
             $totalItems = 0;
+            $errors = [];
 
             foreach ($items as $item) {
-                $productId = $item['product_id'];
-                $quantity = (int)$item['quantity']; // Cast to integer
+                try {
+                    $productId = $item['product_id'];
+                    $quantity = (int)$item['quantity'];
 
+                    $product = Product_list::where('id', $productId)
+                        ->where('business_key', $businessKey)
+                        ->first();
 
-                $product = Product_list::where('id', $productId)
-                    ->where('business_key', $businessKey)
-                    ->first();
-
-                if (!$product) {
-                    throw new \Exception("Product ID  not found or doesn't belong to business");
-                }
-
-                // Check if product already exists at this location
-                $existingProduct = LocationProductList::where('location_id', $destinationLocationId)
-                    ->where('product_id', $productId)
-                    ->where('business_key', $businessKey)
-                    ->first();
-
-                if ($existingProduct) {
-                    // Update existing record - add quantity to stock
-                    $newStock = (int)($existingProduct->stock_quantity + $quantity);
-                    $existingProduct->update([
-                        'stock_quantity' => $newStock,
-                    ]);
-
-                    $locationProduct = $existingProduct;
-                } else {
-                    // FIXED: Cast low_stock_threshold to integer properly
-                    $lowStockThreshold = 0; // Default
-                    if ($product->low_stock_threshold !== null) {
-                        // If it's a string like "22.00", convert to integer
-                        if (is_string($product->low_stock_threshold)) {
-                            $lowStockThreshold = (int)round((float)$product->low_stock_threshold);
-                        } else {
-                            $lowStockThreshold = (int)$product->low_stock_threshold;
-                        }
+                    if (!$product) {
+                        $errors[] = "Product ID {$productId} not found or doesn't belong to business";
+                        continue;
                     }
 
-                    // Create new record with all required fields and proper casting
-                    $locationProduct = LocationProductList::create([
-                        'owner_id' => (int)$ownerId,
-                        'business_key' => (string)$businessKey,
-                        'location_id' => (int)$destinationLocationId,
-                        'product_id' => (int)$productId,
-                        'category_id' => $product->category_id ? (int)$product->category_id : null,
-                        'supplier_id' => $product->supplier_id ? (int)$product->supplier_id : null,
-                        'price' => (float)($product->price ?? 0),
-                        'cost_price' => $product->cost_price ? (float)$product->cost_price : null,
-                        'sale_price' => $product->sale_price ? (float)$product->sale_price : null,
-                        'stock_quantity' => (int)$quantity,
-                        'low_stock_threshold' => 0, // Now it's definitely an integer
-                    ]);
+                    // Check if product already exists at this location
+                    $existingProduct = LocationProductList::where('location_id', $destinationLocationId)
+                        ->where('product_id', $productId)
+                        ->where('business_key', $businessKey)
+                        ->first();
+
+                    if ($existingProduct) {
+                        // Update existing record - add to existing stock
+                        $newStock = (int)($existingProduct->stock_quantity + $quantity);
+                        $existingProduct->update([
+                            'stock_quantity' => $newStock,
+                        ]);
+                        $locationProduct = $existingProduct;
+                    } else {
+                        // Calculate low stock threshold
+                        $lowStockThreshold = 0;
+                        if ($product->low_stock_threshold !== null) {
+                            $lowStockThreshold = is_string($product->low_stock_threshold)
+                                ? (int)round((float)$product->low_stock_threshold)
+                                : (int)$product->low_stock_threshold;
+                        }
+
+                        // Create new location product record
+                        $locationProduct = LocationProductList::create([
+                            'owner_id' => $ownerId,
+                            'business_key' => $businessKey,
+                            'location_id' => $destinationLocationId,
+                            'product_id' => $productId,
+                            'category_id' => $product->category_id,
+                            'supplier_id' => $product->supplier_id,
+                            'price' => (float)($product->price ?? 0),
+                            'cost_price' => $product->cost_price ? (float)$product->cost_price : null,
+                            'sale_price' => $product->sale_price ? (float)$product->sale_price : null,
+                            'stock_quantity' => $quantity,
+                            'low_stock_threshold' => $lowStockThreshold,
+                        ]);
+                    }
 
                     // Create item history record
                     ItemHistory::create([
@@ -579,49 +851,63 @@ class ProductController extends Controller
                         'owner_id' => $ownerId,
                         'business_key' => $businessKey,
                         'location_id' => $destinationLocationId,
-                        'from_branch_id' => 1,
-                        'to_branch_id' => 1,
+                        'from_branch_id' => null, // No branch transfer happening
+                        'to_branch_id' => $destinationLocationId,
                         'type' => $quantity > 0 ? 'Newly Added' : 'linked',
                         'quantity' => $quantity,
                         'cost' => $product->cost_price,
                         'price' => $product->price,
-                        'source_id' => $ownerId,
-                        'source_type' => 'admin', // Full namespace as string
+                        'source_id' => 1, // morphs creates bigint, use a numeric default
+                        'source_type' => 'admin',
                         'note' => $notes ?? "Newly Added From Product Catalog / Head Office",
                         'transaction_date' => now(),
                     ]);
-                }
 
-                $processedItems[] = [
-                    'product_id' => $productId,
-                    'product_name' => $product->name,
-                    'quantity' => $quantity,
-                    'new_stock' => $locationProduct->stock_quantity,
-                ];
+                    $processedItems[] = [
+                        'product_id' => $productId,
+                        'product_name' => $product->name,
+                        'quantity' => $quantity,
+                        'new_stock' => $locationProduct->stock_quantity,
+                    ];
 
-                if ($quantity > 0) {
-                    $totalItems += $quantity;
+                    if ($quantity > 0) {
+                        $totalItems += $quantity;
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Error processing distribution item', [
+                        'product_id' => $item['product_id'] ?? 'unknown',
+                        'error' => $e->getMessage()
+                    ]);
+                    $errors[] = "Error processing product: {$e->getMessage()}";
+                    continue;
                 }
+            }
+
+            if (empty($processedItems)) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No items could be processed',
+                    'errors' => $errors
+                ], 422);
             }
 
             DB::commit();
 
+            $locationName = $destinationLocation->location_name ?? 'Unknown Location';
             $message = $totalItems > 0
-                ? "Successfully added {$totalItems} units to {$destinationLocation->name}"
-                : count($items) . " products added to {$destinationLocation->name} (no quantities specified)";
+                ? "Successfully added {$totalItems} units to {$locationName}"
+                : count($processedItems) . " products added to {$locationName}";
+
+            if (!empty($errors)) {
+                $message .= ". Some items had errors.";
+                Log::warning('Distribution completed with errors', ['errors' => $errors]);
+            }
 
             return response()->json([
                 'success' => true,
                 'message' => $message,
-                // 'data' => [
-                //     'destination' => [
-                //         'id' => $destinationLocation->id,
-                //         'name' => $destinationLocation->name,
-                //     ],
-                //     'items_processed' => count($items),
-                //     'total_units_added' => $totalItems,
-                //     'items' => $processedItems,
-                // ]
+                'warnings' => !empty($errors) ? $errors : null,
             ], 200);
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
@@ -632,23 +918,373 @@ class ProductController extends Controller
             ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
-
-            // Log the full error details
             Log::error('Distribution failed', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
+                'line' => $e->getLine()
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to distribute products',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'An unexpected error occurred'
             ], 500);
         }
     }
 
+
+    // public function distributeProducts(Request $request)
+    // {
+    //     try {
+    //         // Get the ULID of the authenticated user
+    //         $ownerId = Auth::id(); // This will return the ULID string
+    //         $businessKey = Auth::user()->active_business_key;
+
+    //         // Log the owner ID to verify it's a ULID
+    //         Log::info('Distribution request - Auth info', [
+    //             'owner_id' => $ownerId,
+    //             'owner_id_type' => gettype($ownerId),
+    //             'business_key' => $businessKey,
+    //         ]);
+
+    //         // Log the incoming request for debugging
+    //         Log::info('Distribution request received', [
+    //             'user_id' => $ownerId,
+    //             'business_key' => $businessKey,
+    //             'request_data' => $request->all(),
+    //             'destination_location_id' => $request->destination_location_id,
+    //             'destination_location_id_type' => gettype($request->destination_location_id),
+    //             'items_count' => is_array($request->items) ? count($request->items) : 0,
+    //         ]);
+
+    //         $validated = $request->validate([
+    //             'destination_location_id' => [
+    //                 'required',
+    //                 'string',
+    //                 function ($attribute, $value, $fail) use ($businessKey) {
+    //                     $location = Business_locations::where('id', $value)
+    //                         ->where('business_key', $businessKey)
+    //                         ->exists();
+    //                     if (!$location) {
+    //                         Log::warning('Location validation failed', [
+    //                             'location_id' => $value,
+    //                             'business_key' => $businessKey
+    //                         ]);
+    //                         $fail('The selected location does not belong to your business.');
+    //                     }
+    //                 },
+    //             ],
+    //             'items' => 'required|array|min:1',
+    //             'items.*.product_id' => [
+    //                 'required',
+    //                 'string',
+    //                 function ($attribute, $value, $fail) use ($businessKey) {
+    //                     $product = Product_list::where('id', $value)
+    //                         ->where('business_key', $businessKey)
+    //                         ->exists();
+
+    //                     if (!$product) {
+    //                         Log::warning('Product validation failed', [
+    //                             'product_id' => $value,
+    //                             'business_key' => $businessKey
+    //                         ]);
+    //                         $fail('The selected product does not belong to your business.');
+    //                     }
+    //                 },
+    //             ],
+    //             'items.*.quantity' => 'required|integer|min:0',
+    //             'notes' => 'nullable|string|max:500',
+    //         ]);
+
+    //         DB::beginTransaction();
+    //         Log::info('Transaction started');
+
+    //         if (!$businessKey) {
+    //             throw new \Exception('Active business key not found for user');
+    //         }
+
+    //         // Keep as string - ULID
+    //         $destinationLocationId = $request->destination_location_id;
+    //         $items = $request->items;
+    //         $notes = $request->notes ?? null;
+
+    //         Log::info('Processing distribution', [
+    //             'destination_location_id' => $destinationLocationId,
+    //             'items_count' => count($items)
+    //         ]);
+
+    //         $destinationLocation = Business_locations::where('id', $destinationLocationId)
+    //             ->where('business_key', $businessKey)
+    //             ->first();
+
+    //         if (!$destinationLocation) {
+    //             Log::error('Destination location not found', [
+    //                 'location_id' => $destinationLocationId,
+    //                 'business_key' => $businessKey
+    //             ]);
+    //             throw new \Exception("Location not found or doesn't belong to business");
+    //         }
+
+    //         Log::info('Destination location found', [
+    //             'location_id' => $destinationLocation->id,
+    //             'location_name' => $destinationLocation->location_name ?? $destinationLocation->name
+    //         ]);
+
+    //         $processedItems = [];
+    //         $totalItems = 0;
+    //         $errors = [];
+
+    //         foreach ($items as $index => $item) {
+    //             try {
+    //                 // Keep as string - ULID
+    //                 $productId = $item['product_id'];
+    //                 $quantity = (int)$item['quantity'];
+
+    //                 Log::info('Processing item', [
+    //                     'index' => $index,
+    //                     'product_id' => $productId,
+    //                     'product_id_type' => gettype($productId),
+    //                     'quantity' => $quantity
+    //                 ]);
+
+    //                 $product = Product_list::where('id', $productId)
+    //                     ->where('business_key', $businessKey)
+    //                     ->first();
+
+    //                 if (!$product) {
+    //                     $errorMsg = "Product ID {$productId} not found or doesn't belong to business";
+    //                     Log::error($errorMsg, [
+    //                         'product_id' => $productId,
+    //                         'business_key' => $businessKey
+    //                     ]);
+    //                     $errors[] = $errorMsg;
+    //                     continue; // Skip this item
+    //                 }
+
+    //                 Log::info('Product found', [
+    //                     'product_id' => $product->id,
+    //                     'product_name' => $product->name
+    //                 ]);
+
+    //                 // Check if product already exists at this location
+    //                 $existingProduct = LocationProductList::where('location_id', $destinationLocationId)
+    //                     ->where('product_id', $productId)
+    //                     ->where('business_key', $businessKey)
+    //                     ->first();
+
+    //                 if ($existingProduct) {
+    //                     Log::info('Product exists at location, updating stock', [
+    //                         'product_id' => $productId,
+    //                         'current_stock' => $existingProduct->stock_quantity,
+    //                         'adding' => $quantity
+    //                     ]);
+
+    //                     $newStock = (int)($existingProduct->stock_quantity + $quantity);
+    //                     $existingProduct->update([
+    //                         'stock_quantity' => $newStock,
+    //                     ]);
+
+    //                     $locationProduct = $existingProduct;
+
+    //                     Log::info('Stock updated', ['new_stock' => $newStock]);
+    //                 } else {
+    //                     Log::info('Creating new location product', [
+    //                         'product_id' => $productId,
+    //                         'quantity' => $quantity
+    //                     ]);
+
+    //                     // Calculate low stock threshold
+    //                     $lowStockThreshold = 0;
+    //                     if ($product->low_stock_threshold !== null) {
+    //                         if (is_string($product->low_stock_threshold)) {
+    //                             $lowStockThreshold = (int)round((float)$product->low_stock_threshold);
+    //                         } else {
+    //                             $lowStockThreshold = (int)$product->low_stock_threshold;
+    //                         }
+    //                     }
+
+    //                     // Create new record - ALL IDs should be strings (ULIDs)
+    //                     $locationProductData = [
+    //                         'owner_id' => $ownerId, // ULID string - DON'T cast to int
+    //                         'business_key' => (string)$businessKey,
+    //                         'location_id' => $destinationLocationId, // ULID string
+    //                         'product_id' => $productId, // ULID string
+    //                         'category_id' => $product->category_id, // Keep as is (might be integer or ULID)
+    //                         'supplier_id' => $product->supplier_id, // Keep as is
+    //                         'price' => (float)($product->price ?? 0),
+    //                         'cost_price' => $product->cost_price ? (float)$product->cost_price : null,
+    //                         'sale_price' => $product->sale_price ? (float)$product->sale_price : null,
+    //                         'stock_quantity' => (int)$quantity,
+    //                         'low_stock_threshold' => $lowStockThreshold,
+    //                     ];
+
+    //                     Log::info('Creating LocationProductList with data', [
+    //                         'data' => $locationProductData,
+    //                         'owner_id_type' => gettype($ownerId),
+    //                         'location_id_type' => gettype($destinationLocationId),
+    //                         'product_id_type' => gettype($productId),
+    //                     ]);
+
+    //                     $locationProduct = LocationProductList::create($locationProductData);
+
+    //                     Log::info('LocationProductList created', [
+    //                         'id' => $locationProduct->id
+    //                     ]);
+
+    //                     // Create item history record
+    //                     try {
+    //                         $historyData = [
+    //                             'product_id' => $productId, // ULID string
+    //                             'owner_id' => $ownerId, // ULID string - DON'T cast to int
+    //                             'business_key' => $businessKey,
+    //                             'location_id' => $destinationLocationId, // ULID string
+    //                             'from_branch_id' => 1,
+    //                             'to_branch_id' => 1,
+    //                             'type' => $quantity > 0 ? 'Newly Added' : 'linked',
+    //                             'quantity' => $quantity,
+    //                             'cost' => $product->cost_price,
+    //                             'price' => $product->price,
+    //                             'source_id' => $ownerId, // ULID string
+    //                             'source_type' => 'admin',
+    //                             'note' => $notes ?? "Newly Added From Product Catalog / Head Office",
+    //                             'transaction_date' => now(),
+    //                         ];
+
+    //                         Log::info('Creating ItemHistory', $historyData);
+
+    //                         ItemHistory::create($historyData);
+
+    //                         Log::info('ItemHistory created');
+    //                     } catch (\Exception $e) {
+    //                         Log::error('Failed to create ItemHistory', [
+    //                             'product_id' => $productId,
+    //                             'error' => $e->getMessage(),
+    //                             'trace' => $e->getTraceAsString()
+    //                         ]);
+    //                         // Don't throw, continue processing
+    //                     }
+    //                 }
+
+    //                 $processedItems[] = [
+    //                     'product_id' => $productId,
+    //                     'product_name' => $product->name,
+    //                     'quantity' => $quantity,
+    //                     'new_stock' => $locationProduct->stock_quantity,
+    //                 ];
+
+    //                 if ($quantity > 0) {
+    //                     $totalItems += $quantity;
+    //                 }
+
+    //                 Log::info('Item processed successfully', [
+    //                     'product_id' => $productId,
+    //                     'processed_count' => count($processedItems)
+    //                 ]);
+    //             } catch (\Exception $e) {
+    //                 Log::error('Error processing item', [
+    //                     'item_index' => $index,
+    //                     'item_data' => $item,
+    //                     'error' => $e->getMessage(),
+    //                     'file' => $e->getFile(),
+    //                     'line' => $e->getLine(),
+    //                     'trace' => $e->getTraceAsString()
+    //                 ]);
+    //                 $errors[] = "Error processing product ID {$item['product_id']}: {$e->getMessage()}";
+    //                 continue;
+    //             }
+    //         }
+
+    //         // Check if any items were processed
+    //         if (empty($processedItems)) {
+    //             Log::error('No items were processed', [
+    //                 'errors' => $errors,
+    //                 'total_items_in_request' => count($items)
+    //             ]);
+
+    //             DB::rollBack();
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'No items could be processed',
+    //                 'errors' => $errors
+    //             ], 422);
+    //         }
+
+    //         DB::commit();
+    //         Log::info('Transaction committed', [
+    //             'processed_items' => count($processedItems),
+    //             'total_units' => $totalItems,
+    //             'errors_count' => count($errors)
+    //         ]);
+
+    //         $locationName = $destinationLocation->location_name ?? $destinationLocation->name ?? 'Unknown Location';
+
+    //         $message = $totalItems > 0
+    //             ? "Successfully added {$totalItems} units to {$locationName}"
+    //             : count($items) . " products added to {$locationName} (no quantities specified)";
+
+    //         if (!empty($errors)) {
+    //             $message .= ". Some items had errors: " . implode('; ', $errors);
+    //             Log::warning('Some items had errors', ['errors' => $errors]);
+    //         }
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => $message,
+    //             'warnings' => !empty($errors) ? $errors : null,
+    //             'data' => [
+    //                 'destination' => [
+    //                     'id' => $destinationLocation->id,
+    //                     'name' => $locationName,
+    //                 ],
+    //                 'items_processed' => count($processedItems),
+    //                 'total_units_added' => $totalItems,
+    //                 'items' => $processedItems,
+    //             ]
+    //         ], 200);
+    //     } catch (\Illuminate\Validation\ValidationException $e) {
+    //         DB::rollBack();
+    //         Log::error('Validation exception', [
+    //             'errors' => $e->errors(),
+    //             'request_data' => $request->all(),
+    //             'file' => $e->getFile(),
+    //             'line' => $e->getLine()
+    //         ]);
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Validation failed',
+    //             'errors' => $e->errors()
+    //         ], 422);
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+
+    //         Log::error('Distribution failed', [
+    //             'message' => $e->getMessage(),
+    //             'code' => $e->getCode(),
+    //             'file' => $e->getFile(),
+    //             'line' => $e->getLine(),
+    //             'trace' => $e->getTraceAsString(),
+    //             'previous_exception' => $e->getPrevious() ? [
+    //                 'message' => $e->getPrevious()->getMessage(),
+    //                 'file' => $e->getPrevious()->getFile(),
+    //                 'line' => $e->getPrevious()->getLine(),
+    //             ] : null,
+    //             'request_data' => $request->all(),
+    //             'user_id' => Auth::id() ?? 'not authenticated',
+    //             'user_id_type' => gettype(Auth::id()),
+    //             'business_key' => $businessKey ?? 'not set',
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Failed to distribute products',
+    //             'error' => $e->getMessage(),
+    //             'debug_info' => config('app.debug') ? [
+    //                 'file' => $e->getFile(),
+    //                 'line' => $e->getLine(),
+    //             ] : null
+    //         ], 500);
+    //     }
+    // }
 
 
 
@@ -1674,7 +2310,7 @@ class ProductController extends Controller
         }
 
         // Use decryptString to match encryptString from index method
-        $id = Crypt::decryptString($id);
+        // $id = Crypt::decryptString($id);
 
         $product = Product_list::where('id', $id)
             ->where('business_key', $user->active_business_key)
@@ -1693,8 +2329,8 @@ class ProductController extends Controller
             ],
             'description' => 'nullable|string|max:450',
 
-            'category_id' => 'required|integer|exists:product_categories,id',
-            'supplier_id' => 'required|integer|exists:vendors,id',
+            'category_id' => 'required|string|exists:product_categories,id|max:50',
+            'supplier_id' => 'required|string|exists:vendors,id|max:50',
 
             'products_measurements' => 'nullable|string|max:50',
 
@@ -1761,7 +2397,7 @@ class ProductController extends Controller
 
         try {
 
-            $decryptedId = Crypt::decrypt($id);
+            $decryptedId = ($id);
 
             $product = LocationProductList::where('id', $decryptedId)
                 ->where('business_key', $user->active_business_key)
