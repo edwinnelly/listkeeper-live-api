@@ -129,10 +129,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/product_history/{id}/{locid}', [ProductController::class, 'product_history']);
 
     // In your routes/api.php file
-    // Route::get('/product_location_single/{locid}/product/{id}', [ProductController::class, 'product_location_single']);
     Route::get('/product_location_single/{id}/{locid}', [ProductController::class, 'product_location_single']);
 
     Route::put('/product_location_update/{id}', [ProductController::class, 'update_product']);
+
+    // Create a new stock transfer
+    Route::post('/stock-transfers', [ProductController::class, 'transferstock'])
+        ->name('transferstock');
 
 
     //manage purchase order items
