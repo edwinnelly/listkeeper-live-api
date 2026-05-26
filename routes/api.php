@@ -127,6 +127,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/products_locaction_view/{id}', [ProductController::class, 'show']);
 
     Route::get('/product_history/{id}/{locid}', [ProductController::class, 'product_history']);
+    Route::get('/fetch_transfer_stock/{id}', [ProductController::class, 'fetch_transfer_stock']);
 
     // In your routes/api.php file
     Route::get('/product_location_single/{id}/{locid}', [ProductController::class, 'product_location_single']);

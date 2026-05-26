@@ -2230,6 +2230,114 @@ class ProductController extends Controller
     // }
 
 
+    // public function fetch_transfer_stock(Request $request)
+    // {
+    //     $user = Auth::user();
+
+    //     if (empty($user->active_business_key)) {
+    //         Log::warning('No active business selected', [
+    //             'user_id' => $user->id
+    //         ]);
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'No active business selected'
+    //         ], 400);
+    //     }
+
+    //     if (!$user->hasPermission('product_read')) {
+    //         Log::warning('Permission denied for product_read', [
+    //             'user_id' => $user->id
+    //         ]);
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'You do not have permission to view stock transfers.'
+    //         ], 403);
+    //     }
+
+    //     $transfers = StockTransfer::where('business_key', $user->active_business_key)
+    //         ->with([
+    //             'fromLocation:id,location_name,city,head_office',
+    //             'toLocation:id,location_name,city,head_office',
+    //             'product:id,name,sku,image,barcode'
+    //         ])
+    //         ->orderBy('created_at', 'desc')
+    //         ->get();
+
+    //     Log::info('Stock transfers fetched successfully', [
+    //         'user_id' => $user->id,
+    //         'business_key' => $user->active_business_key,
+    //         'total_transfers' => $transfers->count(),
+    //         'transfer_ids' => $transfers->pluck('id')->toArray()
+    //     ]);
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'data' => $transfers
+    //     ]);
+    // }
+
+
+    public function fetch_transfer_stock(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        if (empty($user->active_business_key)) {
+            Log::warning('No active business selected', [
+                'user_id' => $user->id
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'No active business selected'
+            ], 400);
+        }
+
+        if (!$user->hasPermission('product_read')) {
+            Log::warning('Permission denied for product_read', [
+                'user_id' => $user->id
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to view stock transfers.'
+            ], 403);
+        }
+
+        // Use branch_id from request or fallback to user's branch
+        $branchId = $id;
+
+        $query = StockTransfer::where('business_key', $user->active_business_key);
+
+        // Filter transfers where branch is either source or destination
+        if ($branchId) {
+            $query->where(function ($q) use ($branchId) {
+                $q->where('from_location_id', $branchId)
+                    ->orWhere('to_location_id', $branchId);
+            });
+        }
+
+        $transfers = $query->with([
+            'fromLocation:id,location_name,city,head_office',
+            'toLocation:id,location_name,city,head_office',
+            'product:id,name,sku,image,barcode'
+        ])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        Log::info('Stock transfers fetched successfully', [
+            'user_id' => $user->id,
+            'business_key' => $user->active_business_key,
+            'branch_id' => $branchId,
+            'total_transfers' => $transfers->count(),
+            'transfer_ids' => $transfers->pluck('id')->toArray()
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $transfers
+        ]);
+    }
+
+
+
     /**
      * Delete product
      */
