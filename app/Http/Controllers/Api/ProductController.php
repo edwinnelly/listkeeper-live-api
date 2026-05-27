@@ -2277,6 +2277,67 @@ class ProductController extends Controller
     // }
 
 
+    // public function fetch_transfer_stock(Request $request, $id)
+    // {
+    //     $user = Auth::user();
+
+    //     if (empty($user->active_business_key)) {
+    //         Log::warning('No active business selected', [
+    //             'user_id' => $user->id
+    //         ]);
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'No active business selected'
+    //         ], 400);
+    //     }
+
+    //     if (!$user->hasPermission('product_read')) {
+    //         Log::warning('Permission denied for product_read', [
+    //             'user_id' => $user->id
+    //         ]);
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'You do not have permission to view stock transfers.'
+    //         ], 403);
+    //     }
+
+    //     // Use branch_id from request or fallback to user's branch
+    //     $branchId = $id;
+
+    //     $query = StockTransfer::where('business_key', $user->active_business_key);
+
+    //     // Filter transfers where branch is either source or destination
+    //     if ($branchId) {
+    //         $query->where(function ($q) use ($branchId) {
+    //             $q->where('from_location_id', $branchId)
+    //                 ->orWhere('to_location_id', $branchId);
+    //         });
+    //     }
+
+    //     $transfers = $query->with([
+    //         'fromLocation:id,location_name,city,head_office',
+    //         'toLocation:id,location_name,city,head_office',
+    //         'product:id,name,sku,image,barcode'
+    //     ])
+    //         ->orderBy('created_at', 'desc')
+    //         ->get();
+
+    //     Log::info('Stock transfers fetched successfully', [
+    //         'user_id' => $user->id,
+    //         'business_key' => $user->active_business_key,
+    //         'branch_id' => $branchId,
+    //         'total_transfers' => $transfers->count(),
+    //         'transfer_ids' => $transfers->pluck('id')->toArray()
+    //     ]);
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'data' => $transfers
+    //     ]);
+    // }
+
+
+
     public function fetch_transfer_stock(Request $request, $id)
     {
         $user = Auth::user();
@@ -2304,6 +2365,14 @@ class ProductController extends Controller
         // Use branch_id from request or fallback to user's branch
         $branchId = $id;
 
+        // Pagination parameters
+        $perPage = (int) $request->input('per_page', 25); // Default 25 items per page
+        $page = (int) $request->input('page', 1); // Default to page 1
+
+        // Validate pagination parameters
+        $perPage = max(1, min($perPage, 100)); // Limit between 1 and 100
+        $page = max(1, $page); // Minimum page 1
+
         $query = StockTransfer::where('business_key', $user->active_business_key);
 
         // Filter transfers where branch is either source or destination
@@ -2314,27 +2383,152 @@ class ProductController extends Controller
             });
         }
 
+        // Clone the query for total calculations
+        $totalQuery = clone $query;
+
+        // Get total count and total value before pagination
+        $totalTransfers = $totalQuery->count();
+        $totalValue = $totalQuery->sum('total');
+
+        // Get status counts for all transfers (not just paginated)
+        $statusCounts = (clone $query)->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        // Calculate pagination values
+        $totalPages = ceil($totalTransfers / $perPage);
+        $offset = ($page - 1) * $perPage;
+
+        // Apply pagination and fetch transfers
         $transfers = $query->with([
             'fromLocation:id,location_name,city,head_office',
             'toLocation:id,location_name,city,head_office',
             'product:id,name,sku,image,barcode'
         ])
             ->orderBy('created_at', 'desc')
+            ->skip($offset)
+            ->take($perPage)
             ->get();
+
+        // Calculate current page total value
+        $currentPageTotalValue = $transfers->sum('total');
 
         Log::info('Stock transfers fetched successfully', [
             'user_id' => $user->id,
             'business_key' => $user->active_business_key,
             'branch_id' => $branchId,
-            'total_transfers' => $transfers->count(),
-            'transfer_ids' => $transfers->pluck('id')->toArray()
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_transfers' => $totalTransfers,
+            'total_value' => $totalValue,
+            'current_page_transfers' => $transfers->count(),
+            'current_page_value' => $currentPageTotalValue,
+            'total_pages' => $totalPages
         ]);
 
         return response()->json([
             'success' => true,
-            'data' => $transfers
+            'data' => $transfers,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $totalTransfers,
+                'total_pages' => $totalPages,
+                'from' => $totalTransfers > 0 ? $offset + 1 : 0,
+                'to' => $totalTransfers > 0 ? min($offset + $perPage, $totalTransfers) : 0,
+                'has_more_pages' => $page < $totalPages
+            ],
+            'summary' => [
+                'total_value' => (float) $totalValue,
+                'current_page_value' => (float) $currentPageTotalValue,
+                'status_counts' => [
+                    'pending' => $statusCounts['pending'] ?? 0,
+                    'in_transit' => $statusCounts['in_transit'] ?? 0,
+                    'completed' => $statusCounts['completed'] ?? 0,
+                    'cancelled' => $statusCounts['cancelled'] ?? 0,
+                ]
+            ]
         ]);
     }
+
+
+
+    /**
+     * Get single transfer details for approval
+     */
+    public function show_transfer_for_approval(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        if (empty($user->active_business_key)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No active business selected'
+            ], 400);
+        }
+
+        if (!$user->hasPermission('product_read')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to view transfer details.'
+            ], 403);
+        }
+
+        $transfer = StockTransfer::where('business_key', $user->active_business_key)
+            ->where('id', $id)
+            ->with([
+                'fromLocation:id,location_name,city,head_office,address,phone',
+                'toLocation:id,location_name,city,head_office,address,phone',
+                'product:id,name,sku,image,barcode,description,product_measurements',
+                'receivedBy:id,name,email'
+            ])
+            ->first();
+
+        if (!$transfer) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transfer not found'
+            ], 404);
+        }
+
+        // Get current stock at source location
+        $currentStock = StockTransfer::where('product_id', $transfer->product_id)
+            ->where('from_location_id', $transfer->from_location_id)
+            ->where('business_key', $user->active_business_key)
+            ->value('stock_quantity') ?? 0;
+
+        // Calculate stock after transfer
+        $transferQuantity = $transfer->stock_quantity;
+        $stockAfterTransfer = $currentStock - $transferQuantity;
+
+        Log::info('Transfer details fetched for approval', [
+            'user_id' => $user->id,
+            'transfer_id' => $transfer->id,
+            'current_stock' => $currentStock,
+            'status' => $transfer->status
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'transfer' => $transfer,
+                'current_stock' => $currentStock,
+                'stock_after_transfer' => $stockAfterTransfer,
+                'can_approve' => $transfer->status === 'pending',
+                'has_sufficient_stock' => $currentStock >= $transferQuantity,
+                'stock_details' => [
+                    'product_name' => $transfer->product->name ?? 'N/A',
+                    'product_sku' => $transfer->product->sku ?? 'N/A',
+                    'source_location' => $transfer->fromLocation->location_name ?? 'N/A',
+                    'requested_quantity' => $transfer->stock_quantity,
+                    'available_quantity' => $currentStock,
+                    'unit' => $transfer->product->product_measurements ?? 'units'
+                ]
+            ]
+        ]);
+    }
+
 
 
 
