@@ -132,6 +132,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
       // Get single transfer details for approval
     Route::get('/show_transfer_for_approval/{id}', [ProductController::class, 'show_transfer_for_approval']);
 
+
+  // Approve or reject a transfer
+    Route::post('/approve_transfer/{id}', [ProductController::class, 'approve_transfer']);
+
     // In your routes/api.php file
     Route::get('/product_location_single/{id}/{locid}', [ProductController::class, 'product_location_single']);
 

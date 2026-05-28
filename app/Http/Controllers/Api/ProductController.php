@@ -2548,4 +2548,139 @@ class ProductController extends Controller
             'message' => 'Product deleted successfully'
         ]);
     }
+
+
+
+
+    public function approve_transfer(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        // Validate active business
+        if (empty($user->active_business_key)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No active business selected'
+            ], 400);
+        }
+
+        // Validate permissions
+        if (!$user->hasPermission('product_read')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to approve transfers.'
+            ], 403);
+        }
+
+        // Validate request
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|in:approved,suspended',
+            'notes' => 'nullable|string|max:1000',
+            'approved_quantity' => 'nullable|integer|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Find transfer
+        $transfer = StockTransfer::where('business_key', $user->active_business_key)
+            ->where('id', $id)
+            ->first();
+
+        if (!$transfer) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transfer not found'
+            ], 404);
+        }
+
+        // Check if pending
+        if ($transfer->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transfer already processed. Current status: ' . $transfer->status
+            ], 400);
+        }
+
+        $newStatus = $request->status;
+        $notes = $request->notes;
+        $approvedQuantity = $request->approved_quantity ?? $transfer->stock_quantity;
+
+        // Validate quantity
+        if ($approvedQuantity > $transfer->stock_quantity) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Approved quantity cannot exceed requested quantity'
+            ], 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Handle stock for approved transfers
+            if ($newStatus === 'approved') {
+                // Get current stock from product_lists table
+                $product = Product_list::where('id', $transfer->product_id)
+                    ->where('business_key', $user->active_business_key)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$product || $product->stock_quantity < $approvedQuantity) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Insufficient stock. Available: ' .
+                            ($product ? $product->stock_quantity : 0) . ', Requested: ' . $approvedQuantity
+                    ], 400);
+                }
+
+                // Deduct from product stock
+                $product->decrement('stock_quantity', $approvedQuantity);
+            }
+
+            // Update transfer
+            $updateData = [
+                'status' => $newStatus,
+                'received_by' => $user->id,
+            ];
+
+            if ($notes) {
+                $timestamp = now()->format('Y-m-d H:i:s');
+                $actionLabel = $newStatus === 'approved' ? 'Approved' : 'Suspended';
+                $updateData['notes'] = ($transfer->notes ? $transfer->notes . "\n\n" : '') .
+                    "[{$timestamp} - {$actionLabel} by {$user->name}]\n{$notes}";
+            }
+
+            $transfer->update($updateData);
+            DB::commit();
+
+            $transferData = $transfer->fresh()->load([
+                'fromLocation:id,location_name,city,head_office',
+                'toLocation:id,location_name,city,head_office',
+                'product:id,name,sku,image,barcode'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $newStatus === 'approved' ? 'Transfer approved successfully' : 'Transfer suspended successfully',
+                'data' => $transferData
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error('Transfer processing failed', [
+                'transfer_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process transfer'
+            ], 500);
+        }
+    }
 }
