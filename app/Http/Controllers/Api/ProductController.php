@@ -2468,7 +2468,7 @@ class ProductController extends Controller
             ], 400);
         }
 
-        if (!$user->hasPermission('product_read')) {
+        if (!$user->hasPermission('read_transfers')) {
             return response()->json([
                 'success' => false,
                 'message' => 'You do not have permission to view transfer details.'
@@ -2501,13 +2501,6 @@ class ProductController extends Controller
         // Calculate stock after transfer
         $transferQuantity = $transfer->stock_quantity;
         $stockAfterTransfer = $currentStock - $transferQuantity;
-
-        Log::info('Transfer details fetched for approval', [
-            'user_id' => $user->id,
-            'transfer_id' => $transfer->id,
-            'current_stock' => $currentStock,
-            'status' => $transfer->status
-        ]);
 
         return response()->json([
             'success' => true,
@@ -2550,6 +2543,67 @@ class ProductController extends Controller
     }
 
 
+    /**
+     * Suspend a transfer
+     * 
+     * POST /api/reject_transfer/{id}
+     */
+    public function rejectTransfer(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        // Validate active business
+        if (empty($user->active_business_key)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No active business selected'
+            ], 400);
+        }
+
+        // Validate permissions
+        if (!$user->hasPermission('can_transfer_stock')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to approve transfers.'
+            ], 403);
+        }
+
+        $transfer = StockTransfer::findOrFail($id);
+
+        if ($transfer->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This transfer has already been processed'
+            ], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'notes' => 'required|string|min:3|max:1000',
+            'rejected_by' => 'nullable|string|max:255',
+            'rejected_at' => 'nullable|date',
+            'transfer_reference' => 'nullable|string',
+            'approved_quantity' => 'nullable|integer|min:0'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $transfer->update([
+            'status' => 'suspended',
+            'notes' => $request->notes,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Transfer suspended successfully',
+            'data' => $transfer->fresh()
+        ]);
+    }
 
 
     public function approve_transfer(Request $request, $id)
@@ -2671,11 +2725,6 @@ class ProductController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-
-            Log::error('Transfer processing failed', [
-                'transfer_id' => $id,
-                'error' => $e->getMessage()
-            ]);
 
             return response()->json([
                 'success' => false,
