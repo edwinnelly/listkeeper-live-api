@@ -79,20 +79,168 @@ class AuthController extends Controller
         }
     }
 
+    // public function login(Request $request)
+    // {
+    //     $request->validate([
+    //         'email' => 'required|email',
+    //         'password' => 'required',
+    //     ]);
 
-    // Login existing user
+    //     $user = User::where('email', $request->email)->first();
+
+    //     if (!$user || !Hash::check($request->password, $user->password)) {
+    //         Log::warning('Failed login attempt', [
+    //             'email' => $request->email,
+    //             'ip' => $request->ip(),
+    //         ]);
+    //         return response()->json(['message' => 'Invalid credentials'], 401);
+    //     }
+
+    //     // Create new Sanctum token
+    //     $token = $user->createToken('auth-token')->plainTextToken;
+
+    //     // Log the token
+    //     Log::info('User logged in successfully', [
+    //         'user_id' => $user->id,
+    //         'email' => $user->email,
+    //         'token' => $token,
+    //         'ip' => $request->ip(),
+    //         'user_agent' => $request->userAgent(),
+    //         'timestamp' => now()->toDateTimeString(),
+    //     ]);
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Logged in successfully',
+    //         'token' => $token,
+    //         'token_type' => 'Bearer',
+    //         'user' => [
+    //             'id' => $user->id,
+    //             'name' => $user->name,
+    //             'email' => $user->email,
+    //             'business_key' => $user->business_key,
+    //             'business_name' => $user->business_name ?? null,
+    //             'role' => $user->role ?? null,
+    //         ],
+    //     ]);
+    // }
+
+
     public function login(Request $request)
     {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+            'remember' => 'nullable|boolean',
+        ]);
+
         $user = User::where('email', $request->email)->first();
 
+        // Check credentials
         if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+            Log::warning('Failed login attempt', [
+                'email' => $request->email,
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'timestamp' => now()->toDateTimeString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid credentials'
+            ], 401);
         }
 
-        Auth::login($user); // login user
+        // Delete all old tokens - Single session per user
+        $user->tokens()->delete();
 
-        return response()->json(['message' => 'Logged in successfully']);
+        // Create new token
+        $token = $user->createToken(
+            'auth-token',
+            ['*'],
+            $request->remember
+                ? now()->addDays(7)   // 7 days if "remember me"
+                : now()->addHours(8)  // 8 hours (typical work shift)
+        )->plainTextToken;
+
+        // Record login history for audit
+        // $this->recordLoginHistory($user, $request);
+
+        // Log successful login
+        Log::info('User logged in successfully', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'business_key' => $user->business_key,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'remember' => $request->remember ?? false,
+            'timestamp' => now()->toDateTimeString(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Logged in successfully',
+            'token' => $token,
+            'token_type' => 'Bearer',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'business_key' => $user->business_key,
+                'business_name' => $user->business_name ?? null,
+            ],
+        ]);
     }
+
+
+
+    // Login existing user
+    // public function login(Request $request)
+    // {
+    //     $request->validate([
+    //         'email' => 'required|email',
+    //         'password' => 'required',
+    //     ]);
+
+    //     $user = User::where('email', $request->email)->first();
+
+    //     if (!$user || !Hash::check($request->password, $user->password)) {
+    //         return response()->json(['message' => 'Invalid credentials'], 401);
+    //     }
+
+    //     // Delete old tokens (optional - remove if you want to keep multiple tokens)
+    //     $user->tokens()->delete();
+
+    //     // Create new Sanctum token
+    //     $token = $user->createToken('auth-token')->plainTextToken;
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Logged in successfully',
+    //         'token' => $token,
+    //         'token_type' => 'Bearer',
+    //         'user' => [
+    //             'id' => $user->id,
+    //             'name' => $user->name,
+    //             'email' => $user->email,
+    //             'business_key' => $user->business_key,
+    //             'business_name' => $user->business_name ?? null,
+    //             'role' => $user->role ?? null,
+    //         ],
+    //     ]);
+    // }
+    // public function login(Request $request)
+    // {
+    //     $user = User::where('email', $request->email)->first();
+
+    //     if (!$user || !Hash::check($request->password, $user->password)) {
+    //         return response()->json(['message' => 'Invalid credentials'], 401);
+    //     }
+
+    //     Auth::login($user); // login user
+
+    //     return response()->json(['message' => 'Logged in successfully']);
+    // }
 
     // Logout user
     public function logout(Request $request)

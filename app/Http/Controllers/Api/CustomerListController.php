@@ -118,7 +118,7 @@ class CustomerListController extends Controller
             'notes' => 'nullable|string',
             'location_id' => [
                 'required',
-                'integer',
+                'string',
                 Rule::exists('business_locations', 'id')
                     ->where('business_key', auth()->user()->active_business_key),
             ],

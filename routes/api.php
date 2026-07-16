@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Businesslist;
 use App\Http\Controllers\Api\CustomerListController;
+use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\UserListController;
 use App\Http\Controllers\Api\Product_category;
@@ -19,6 +20,8 @@ use App\Models\Product_categories;
 
 
 use App\Models\User;
+use GuzzleHttp\Psr7\Request;
+use Illuminate\Support\Facades\Hash;
 
 Route::get('/hello', function () {
     return "Hello, this is plain text!";
@@ -129,11 +132,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/product_history/{id}/{locid}', [ProductController::class, 'product_history']);
     Route::get('/fetch_transfer_stock/{id}', [ProductController::class, 'fetch_transfer_stock']);
 
-      // Get single transfer details for approval
+    // Get single transfer details for approval
     Route::get('/show_transfer_for_approval/{id}', [ProductController::class, 'show_transfer_for_approval']);
 
 
-  // Approve or reject a transfer
+    // Approve or reject a transfer
     Route::post('/approve_transfer/{id}', [ProductController::class, 'approve_transfer']);
 
 
@@ -165,8 +168,32 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Get receiving summary
     Route::get('/purchase-receiving-summary/{id}', [PurchaseController::class, 'receivingSummary']);
+
+
     Route::delete('/product_purchase_delete/{id}', [PurchaseController::class, 'destroy']);
 
 
-    // Route::post('/purchase_order_items', [Purchase_order_items::class, 'store']);
+
+    Route::get('/invoices', [InvoiceController::class, 'index']);
+    // Invoice routes
+    // Route::prefix('invoices')->group(function () {
+    //     Route::get('/', [InvoiceController::class, 'index']);           // List all invoices
+    //     Route::post('/', [InvoiceController::class, 'store']);          // Create invoice
+    //     Route::get('/{id}', [InvoiceController::class, 'show']);        // Get single invoice
+    //     Route::put('/{id}', [InvoiceController::class, 'update']);      // Update invoice
+    //     Route::delete('/{id}', [InvoiceController::class, 'destroy']);  // Delete invoice
+
+    //     // Invoice actions
+    //     Route::post('/{id}/payment', [InvoiceController::class, 'recordPayment']); // Record payment
+    //     Route::post('/{id}/send', [InvoiceController::class, 'send']);             // Send to customer
+    //     Route::post('/{id}/cancel', [InvoiceController::class, 'cancel']);         // Cancel invoice
+
+    //     // Invoice items
+    //     Route::post('/{id}/items', [InvoiceController::class, 'addItem']);                    // Add item
+    //     Route::delete('/{id}/items/{itemId}', [InvoiceController::class, 'removeItem']);      // Remove item
+    // });
+
+
+
+
 });
