@@ -19,137 +19,129 @@ class InvoiceController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
+
+
+
     public function index(Request $request)
-{
-    try {
-        $request->validate([
-            'search' => 'nullable|string|max:255',
-            'status' => 'nullable|string|in:all,draft,sent,paid,partial,overdue,cancelled',
-            'date_range' => 'nullable|string|in:all,today,week,month,year',
-            'payment_status' => 'nullable|string|in:all,unpaid,partial,paid',
-            'customer_id' => 'nullable|string|exists:customers,id',
-            'location_id' => 'nullable|string|exists:business_locations,id',
-            'staff_id' => 'nullable|string|exists:business_employees,id',
-            'from_date' => 'nullable|date',
-            'to_date' => 'nullable|date|after_or_equal:from_date',
-            'sort_by' => 'nullable|string|in:invoice_number,total_amount,created_at,due_date,invoice_date,status,payment_status',
-            'sort_order' => 'nullable|string|in:asc,desc',
-            'per_page' => 'nullable|integer|min:1|max:100',
-            'page' => 'nullable|integer|min:1',
-        ]);
+    {
+        // Get the authenticated user's business key
+        $businessKey = auth()->user()->business_key;
 
-        $perPage = $request->input('per_page', 25);
-        $sortBy = $request->input('sort_by', 'created_at');
-        $sortOrder = $request->input('sort_order', 'desc');
+        if (!$businessKey) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No business associated with this account',
+            ], 403);
+        }
 
-        $invoices = Invoices::with([
+        try {
+            $request->validate([
+                'search' => 'nullable|string|max:255',
+                'status' => 'nullable|string|in:all,draft,sent,paid,partial,overdue,cancelled',
+                'date_range' => 'nullable|string|in:all,today,week,month,year',
+                'payment_status' => 'nullable|string|in:all,unpaid,partial,paid',
+                'customer_id' => 'nullable|string|exists:customers,id',
+                'location_id' => 'nullable|string|exists:business_locations,id',
+                'staff_id' => 'nullable|string|exists:business_employees,id',
+                'from_date' => 'nullable|date',
+                'to_date' => 'nullable|date|after_or_equal:from_date',
+                'sort_by' => 'nullable|string|in:invoice_number,total_amount,created_at,due_date,invoice_date,status,payment_status',
+                'sort_order' => 'nullable|string|in:asc,desc',
+                'per_page' => 'nullable|integer|min:1|max:100',
+                'page' => 'nullable|integer|min:1',
+            ]);
+
+            $perPage = $request->input('per_page', 25);
+            $sortBy = $request->input('sort_by', 'created_at');
+            $sortOrder = $request->input('sort_order', 'desc');
+
+            // Build the query - FILTER BY BUSINESS KEY
+            $query = Invoices::with([
                 'customer:id,first_name,last_name,email,phone,address,city,state,country,customer_code',
-                // 'items.product:id,name,sku,image',
-                'location:id,location_name,address,phone,city,state,country', // Changed from 'name' to 'location_name'
+                'location:id,location_name,address,phone,city,state,country',
                 'staff:id,first_name,last_name,email',
-                // 'business:id,business_key,business_name,logo',
-        ])
+            ])
+                ->where('business_key', $businessKey)
+                ->filter($request->only([
+                    'search',
+                    'status',
+                    'date_range',
+                    'payment_status',
+                    'customer_id',
+                    'location_id',
+                    'staff_id',
+                    'from_date',
+                    'to_date',
+                ]));
 
-        // $invoices = Invoices::with([
-        //         'customer:id,first_name,last_name,email,phone,address,city,state,country,customer_code',
-        //         'items.product:id,name,sku,image',
-        //         'location:id,location_name,address,phone,city,state,country', // Changed from 'name' to 'location_name'
-        //         'staff:id,first_name,last_name,email',
-        //         'business:id,business_key,business_name,logo',
-        // ])
-            // ->where('owner_id', auth()->id())
-            ->filter($request->only([
-                'search',
-                'status',
-                'date_range',
-                'payment_status',
-                'customer_id',
-                'location_id',
-                'staff_id',
-                'from_date',
-                'to_date',
-            ]))
-            ->sortBy($sortBy, $sortOrder)
-            ->paginate($perPage);
+            // Get summary statistics from the filtered query (before pagination)
+            $summaryQuery = clone $query;
+            $stats = [
+                'total_outstanding' => (clone $summaryQuery)
+                    ->whereIn('payment_status', ['unpaid', 'partial'])
+                    ->sum('balance_due'),
+                'paid_invoices' => (clone $summaryQuery)
+                    ->where('status', 'paid')
+                    ->count(),
+                'overdue_invoices' => (clone $summaryQuery)
+                    ->where('status', 'overdue')
+                    ->count(),
+                'total_invoices' => (clone $summaryQuery)->count(),
+            ];
 
-        // Add items count to each invoice
-        $invoices->getCollection()->transform(function ($invoice) {
-            $invoice->items_count = $invoice->items()->count();
-            $invoice->total_quantity = $invoice->items()->sum('quantity');
-            return $invoice;
-        });
+            // Get paginated results
+            $invoices = $query->sortBy($sortBy, $sortOrder)->paginate($perPage);
 
-        return response()->json([
-            'success' => true,
-            'data' => $invoices->items(),
-            'pagination' => [
-                'current_page' => $invoices->currentPage(),
-                'last_page' => $invoices->lastPage(),
-                'per_page' => $invoices->perPage(),
-                'total' => $invoices->total(),
-                'next_page_url' => $invoices->nextPageUrl(),
-                'prev_page_url' => $invoices->previousPageUrl(),
-            ],
-        ]);
-        
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        \Log::error('Invoice listing validation failed', [
-            'errors' => $e->errors(),
-            'request_params' => $request->except(['password', 'token']),
-            'user_id' => auth()->id(),
-            'ip' => $request->ip(),
-        ]);
-        
-        return response()->json([
-            'success' => false,
-            'message' => 'Validation failed',
-            'errors' => $e->errors(),
-        ], 422);
-        
-    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-        \Log::error('Invoice model not found', [
-            'error' => $e->getMessage(),
-            'request_params' => $request->except(['password', 'token']),
-            'user_id' => auth()->id(),
-            'trace' => $e->getTraceAsString(),
-        ]);
-        
-        return response()->json([
-            'success' => false,
-            'message' => 'Requested resource not found',
-        ], 404);
-        
-    } catch (\Illuminate\Database\QueryException $e) {
-        \Log::error('Database error in invoice listing', [
-            'error' => $e->getMessage(),
-            'sql' => $e->getSql(),
-            'bindings' => $e->getBindings(),
-            'request_params' => $request->except(['password', 'token']),
-            'user_id' => auth()->id(),
-            'trace' => $e->getTraceAsString(),
-        ]);
-        
-        return response()->json([
-            'success' => false,
-            'message' => 'An error occurred while fetching invoices',
-        ], 500);
-        
-    } catch (\Exception $e) {
-        \Log::error('Unexpected error in invoice listing', [
-            'error' => $e->getMessage(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-            'request_params' => $request->except(['password', 'token']),
-            'user_id' => auth()->id(),
-            'trace' => $e->getTraceAsString(),
-        ]);
-        
-        return response()->json([
-            'success' => false,
-            'message' => 'An unexpected error occurred',
-        ], 500);
+            // Add items count to each invoice
+            $invoices->getCollection()->transform(function ($invoice) {
+                $invoice->items_count = $invoice->items()->count();
+                $invoice->total_quantity = $invoice->items()->sum('quantity');
+                return $invoice;
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $invoices->items(),
+                'pagination' => [
+                    'current_page' => $invoices->currentPage(),
+                    'last_page' => $invoices->lastPage(),
+                    'per_page' => $invoices->perPage(),
+                    'total' => $invoices->total(),
+                    'next_page_url' => $invoices->nextPageUrl(),
+                    'prev_page_url' => $invoices->previousPageUrl(),
+                ],
+                'stats' => [
+                    'total_outstanding' => round($stats['total_outstanding'], 2),
+                    'paid_invoices' => $stats['paid_invoices'],
+                    'overdue_invoices' => $stats['overdue_invoices'],
+                    'total_invoices' => $stats['total_invoices'],
+                ],
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Illuminate\Database\QueryException $e) {
+            
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while fetching invoices',
+            ], 500);
+        } catch (\Exception $e) {
+            
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An unexpected error occurred',
+            ], 500);
+        }
     }
-}
+
+
+
 
     /**
      * Display the specified invoice with all details
@@ -198,20 +190,30 @@ class InvoiceController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'customer_id' => 'nullable|string|exists:customers,id',  // Changed to nullable
+            'customer_id' => 'nullable|string|exists:customers,id',
             'location_id' => 'required|string|exists:business_locations,id',
             'staff_id' => 'nullable|string|exists:business_employees,id',
-            'invoice_number' => 'required|string|unique:invoices,invoice_number',  // Add this
-            'invoice_date' => 'required|date',  // Uncomment this
+            'invoice_number' => 'required|string|unique:invoices,invoice_number',
+            'invoice_date' => 'required|date',
             'due_date' => 'nullable|date|after_or_equal:invoice_date',
             'status' => 'nullable|string|in:draft,sent,paid,partial,overdue,cancelled',
+            'business_key' => 'required|string|exists:business_lists,business_key',
 
-            // Recurring invoice fields
-            'is_recurring' => 'nullable|boolean',
-            'frequency' => 'nullable|required_if:is_recurring,true|string|in:daily,weekly,monthly,quarterly,yearly',
+            // Recurring invoice fields (required by schema)
+            'frequency' => 'required|string|in:daily,weekly,monthly,quarterly,yearly',
             'interval' => 'nullable|integer|min:1',
-            'next_invoice_date' => 'nullable|required_if:is_recurring,true|date',
+            'next_invoice_date' => 'required|date',
             'total_cycles' => 'nullable|integer|min:1',
+            'is_recurring' => 'nullable|boolean',
+
+            // Financial fields
+            'subtotal' => 'nullable|numeric|min:0',
+            'tax_rate' => 'nullable|numeric|min:0',
+            'tax_amount' => 'nullable|numeric|min:0',
+            'discount_type' => 'nullable|string|in:fixed,percentage',
+            'discount_value' => 'nullable|numeric|min:0',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'total_amount' => 'nullable|numeric|min:0',
 
             // Payment fields
             'payment_method' => 'nullable|string',
@@ -221,7 +223,7 @@ class InvoiceController extends Controller
             'attachment' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
 
             // Items array
-            'items' => 'required|array|min:1',  // Uncomment this
+            'items' => 'required|array|min:1',
             'items.*.product_id' => 'nullable|string|exists:product_lists,id',
             'items.*.description' => 'required|string|max:500',
             'items.*.quantity' => 'required|integer|min:1',
@@ -231,6 +233,11 @@ class InvoiceController extends Controller
         ]);
 
         if ($validator->fails()) {
+            Log::error('Invoice validation failed', [
+                'errors' => $validator->errors()->toArray(),
+                'request_data' => $request->except(['attachment']),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
@@ -243,7 +250,7 @@ class InvoiceController extends Controller
 
             // Get authenticated user info
             $user = auth()->user();
-            $businessKey = $user->business_key;
+            $businessKey = $request->business_key;
             $locationId = $request->location_id;
 
             // Handle file upload
@@ -259,27 +266,35 @@ class InvoiceController extends Controller
                 'location_id' => $locationId,
                 'staff_id' => $request->staff_id,
                 'customer_id' => $request->customer_id,
+                'invoice_number' => $request->invoice_number,
                 'invoice_date' => $request->invoice_date,
                 'due_date' => $request->due_date,
                 'status' => $request->status ?? 'draft',
+                // Required fields with defaults
                 'frequency' => $request->frequency ?? 'monthly',
                 'interval' => $request->interval ?? 1,
                 'next_invoice_date' => $request->next_invoice_date ?? $request->invoice_date,
                 'total_cycles' => $request->total_cycles,
                 'cycles_completed' => 0,
                 'active' => $request->is_recurring ?? false,
-                'subtotal' => 0,
-                'tax_amount' => 0,
-                'discount_amount' => 0,
-                'total_amount' => 0,
+                // Financials - use values from frontend
+                'subtotal' => $request->subtotal ?? 0,
+                'tax_amount' => $request->tax_amount ?? 0,
+                'discount_amount' => $request->discount_amount ?? 0,
+                'total_amount' => $request->total_amount ?? 0,
                 'amount_paid' => 0,
-                'balance_due' => 0,
+                'balance_due' => $request->total_amount ?? 0,
                 'payment_status' => 'unpaid',
                 'payment_method' => $request->payment_method,
                 'transaction_reference' => $request->transaction_reference,
                 'payment_note' => $request->payment_note,
                 'notes' => $request->notes,
                 'attachment' => $attachmentPath,
+            ]);
+
+            Log::info('Invoice created', [
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
             ]);
 
             // Create invoice items
@@ -307,17 +322,26 @@ class InvoiceController extends Controller
                 ]);
             }
 
-            // Recalculate invoice totals from items
-            $invoice->calculateTotals();
+            // Recalculate invoice totals from items if calculateTotals method exists
+            if (method_exists($invoice, 'calculateTotals')) {
+                $invoice->calculateTotals();
+            }
 
             DB::commit();
 
             // Load relationships for response
             $invoice->load([
-                'customer:id,name,email,phone,address',
+                'customer:id,first_name,last_name,email,phone,address',
                 'items.product:id,name,sku,image',
-                'location:id,name',
-                'staff:id,first_name,last_name',
+                'location:id,location_name,address,phone',
+                'staff:id,first_name,last_name,email',
+                'business:id,business_key,business_name,logo',
+            ]);
+
+            Log::info('Invoice created successfully', [
+                'invoice_id' => $invoice->id,
+                'total_amount' => $invoice->total_amount,
+                'items_count' => $invoice->items->count(),
             ]);
 
             return response()->json([
@@ -328,12 +352,16 @@ class InvoiceController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
 
-            // Clean up uploaded file
-            if (isset($attachmentPath)) {
+            // Clean up uploaded file if exists
+            if (isset($attachmentPath) && Storage::disk('public')->exists($attachmentPath)) {
                 Storage::disk('public')->delete($attachmentPath);
             }
 
-            Log::error('Invoice creation failed: ' . $e->getMessage());
+            Log::error('Invoice creation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->except(['attachment']),
+            ]);
 
             return response()->json([
                 'success' => false,

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class Invoices extends Model
 {
@@ -172,32 +173,32 @@ class Invoices extends Model
         if (!$this->relationLoaded('items')) {
             $this->load('items');
         }
-        
+
         // Calculate subtotal: sum of (quantity × unit_price) for all items
         $subtotal = $this->items->sum(function ($item) {
             return $item->quantity * $item->unit_price;
         });
-        
+
         // Calculate total tax: sum of tax from all items
         $totalTax = $this->items->sum('tax');
-        
+
         // Calculate total discount: sum of discount from all items
         $totalDiscount = $this->items->sum('discount');
-        
+
         // Calculate grand total: subtotal + tax - discount
         $totalAmount = $subtotal + $totalTax - $totalDiscount;
-        
+
         // Update invoice financial fields
         $this->subtotal = $subtotal;
         $this->tax_amount = $totalTax;
         $this->discount_amount = $totalDiscount;
         $this->total_amount = $totalAmount;
         $this->balance_due = $totalAmount - $this->amount_paid;
-        
+
         // Auto-update payment status based on amounts
         if ($this->amount_paid <= 0) {
             $this->payment_status = 'unpaid';
-            
+
             // Don't change status if it's draft or cancelled
             if (!in_array($this->status, ['draft', 'cancelled'])) {
                 $this->status = 'sent';
@@ -210,7 +211,7 @@ class Invoices extends Model
             $this->payment_status = 'partial';
             $this->status = 'partial';
         }
-        
+
         $this->save();
     }
 
@@ -223,10 +224,10 @@ class Invoices extends Model
         $unitPrice = (float) ($itemData['unit_price'] ?? 0);
         $tax = (float) ($itemData['tax'] ?? 0);
         $discount = (float) ($itemData['discount'] ?? 0);
-        
+
         // Calculate total: (quantity × unit_price) + tax - discount
         $total = ($quantity * $unitPrice) + $tax - $discount;
-        
+
         $item = $this->items()->create([
             'owner_id' => $this->owner_id,
             'business_key' => $this->business_key,
@@ -240,10 +241,10 @@ class Invoices extends Model
             'discount' => $discount,
             'total' => $total,
         ]);
-        
+
         // Recalculate invoice totals
         $this->calculateTotals();
-        
+
         return $item;
     }
 
@@ -253,13 +254,13 @@ class Invoices extends Model
     public function removeItem(string $itemId): bool
     {
         $item = $this->items()->where('id', $itemId)->first();
-        
+
         if ($item) {
             $item->delete();
             $this->calculateTotals();
             return true;
         }
-        
+
         return false;
     }
 
@@ -281,10 +282,10 @@ class Invoices extends Model
         $this->payment_method = $method;
         $this->transaction_reference = $reference;
         $this->payment_note = $note;
-        
+
         // Recalculate balance and update status
         $this->balance_due = $this->total_amount - $this->amount_paid;
-        
+
         if ($this->amount_paid >= $this->total_amount) {
             $this->payment_status = 'paid';
             $this->status = 'paid';
@@ -293,7 +294,7 @@ class Invoices extends Model
             $this->payment_status = 'partial';
             $this->status = 'partial';
         }
-        
+
         $this->save();
     }
 
@@ -352,94 +353,96 @@ class Invoices extends Model
     public function scopeRecurring($query)
     {
         return $query->where('active', true)
-                     ->where('total_cycles', '>', 0)
-                     ->whereColumn('cycles_completed', '<', 'total_cycles');
+            ->where('total_cycles', '>', 0)
+            ->whereColumn('cycles_completed', '<', 'total_cycles');
     }
 
-    /**
-     * Scope: Filter invoices
-     */
+
+
     public function scopeFilter($query, array $filters)
     {
         return $query
-            ->when($filters['search'] ?? null, function ($q, $search) {
-                $q->where(function ($q) use ($search) {
-                    $q->where('invoice_number', 'like', "%{$search}%")
-                      ->orWhereHas('customer', function ($q) use ($search) {
-                          $q->where('name', 'like', "%{$search}%")
-                            ->orWhere('email', 'like', "%{$search}%")
+            ->when(!empty($filters['search']), function ($query) use ($filters) {
+                $query->where(function ($q) use ($filters) {
+                    $search = $filters['search'];
+                    $q->where('invoice_number', 'ILIKE', "%{$search}%");
+                    $q->orWhereHas('customer', function ($q) use ($search) {
+                        $q->where('first_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('last_name', 'ILIKE', "%{$search}%")
+                            ->orWhere('email', 'ILIKE', "%{$search}%")
                             ->orWhere('phone', 'like', "%{$search}%");
-                      })
-                      ->orWhereHas('staff', function ($q) use ($search) {
-                          $q->where('name', 'like', "%{$search}%");
-                      });
+                    });
                 });
             })
-            ->when($filters['status'] ?? null, function ($q, $status) {
-                if ($status !== 'all') {
-                    $q->where('status', $status);
-                }
+            ->when($this->isActiveFilter($filters, 'status'), function ($query) use ($filters) {
+                $query->where('status', $filters['status']);
             })
-            ->when($filters['date_range'] ?? null, function ($q, $range) {
-                switch ($range) {
-                    case 'today':
-                        $q->whereDate('invoice_date', today());
-                        break;
-                    case 'week':
-                        $q->whereBetween('invoice_date', [now()->startOfWeek(), now()->endOfWeek()]);
-                        break;
-                    case 'month':
-                        $q->whereMonth('invoice_date', now()->month)
-                          ->whereYear('invoice_date', now()->year);
-                        break;
-                    case 'year':
-                        $q->whereYear('invoice_date', now()->year);
-                        break;
-                }
+            ->when($this->isActiveFilter($filters, 'payment_status'), function ($query) use ($filters) {
+                $query->where('payment_status', $filters['payment_status']);
             })
-            ->when($filters['payment_status'] ?? null, function ($q, $paymentStatus) {
-                if ($paymentStatus !== 'all') {
-                    $q->where('payment_status', $paymentStatus);
-                }
+            ->when($this->isActiveFilter($filters, 'location_id'), function ($query) use ($filters) {
+                $query->where('location_id', $filters['location_id']);
             })
-            ->when($filters['customer_id'] ?? null, function ($q, $customerId) {
-                $q->where('customer_id', $customerId);
+            ->when($this->isActiveFilter($filters, 'customer_id'), function ($query) use ($filters) {
+                $query->where('customer_id', $filters['customer_id']);
             })
-            ->when($filters['location_id'] ?? null, function ($q, $locationId) {
-                $q->where('location_id', $locationId);
+            ->when($this->shouldApplyDateRange($filters), function ($query) use ($filters) {
+                match ($filters['date_range']) {
+                    'today' => $query->whereDate('invoice_date', today()),
+                    'week'  => $query->whereBetween('invoice_date', [now()->startOfWeek(), now()->endOfWeek()]),
+                    'month' => $query->whereMonth('invoice_date', now()->month)->whereYear('invoice_date', now()->year),
+                    'year'  => $query->whereYear('invoice_date', now()->year),
+                    default => $query,
+                };
             })
-            ->when($filters['staff_id'] ?? null, function ($q, $staffId) {
-                $q->where('staff_id', $staffId);
+            ->when(!empty($filters['from_date']), function ($query) use ($filters) {
+                $query->whereDate('invoice_date', '>=', $filters['from_date']);
             })
-            ->when($filters['from_date'] ?? null, function ($q, $fromDate) {
-                $q->whereDate('invoice_date', '>=', $fromDate);
-            })
-            ->when($filters['to_date'] ?? null, function ($q, $toDate) {
-                $q->whereDate('invoice_date', '<=', $toDate);
+            ->when(!empty($filters['to_date']), function ($query) use ($filters) {
+                $query->whereDate('invoice_date', '<=', $filters['to_date']);
             });
     }
 
     /**
-     * Scope: Sort invoices
+     * Check if a filter is active (not null and not 'all').
      */
-    public function scopeSortBy($query, $sortBy = 'created_at', $sortOrder = 'desc')
+    private function isActiveFilter(array $filters, string $key): bool
     {
-        $allowedSorts = [
-            'invoice_number', 
-            'total_amount', 
-            'created_at', 
-            'due_date', 
+        return !empty($filters[$key]) && $filters[$key] !== 'all';
+    }
+
+    /**
+     * Determine if date range preset should be applied.
+     */
+    private function shouldApplyDateRange(array $filters): bool
+    {
+        return !empty($filters['date_range'])
+            && $filters['date_range'] !== 'all'
+            && empty($filters['from_date'])
+            && empty($filters['to_date']);
+    }
+
+    public function scopeSortBy($query, $column, $direction = 'asc')
+    {
+        $allowedColumns = [
+            'invoice_number',
+            'total_amount',
+            'created_at',
+            'due_date',
             'invoice_date',
             'status',
             'payment_status',
         ];
-        
-        if (in_array($sortBy, $allowedSorts)) {
-            return $query->orderBy($sortBy, $sortOrder);
+
+        if (in_array($column, $allowedColumns)) {
+            return $query->orderBy($column, $direction);
         }
-        
+
         return $query->orderBy('created_at', 'desc');
     }
+
+
+
 
     /**
      * Get formatted total amount

@@ -29,7 +29,7 @@ return new class extends Migration
             $table->string('about')->nullable(); // Country
             $table->string('profile_pic')->nullable(); // Country
             $table->enum('account_tier', ['yes', 'no'])->default('no');
-            $table->unsignedBigInteger('locations')->nullable();
+            $table->string('locations')->nullable();
             $table->string('password'); // Hashed password
 
             $table->string('business_key')->nullable(); // Optional unique business identifier
